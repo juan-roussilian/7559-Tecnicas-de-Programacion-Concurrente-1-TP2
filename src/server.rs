@@ -7,4 +7,6 @@ pub trait Server {
     async fn cancel_point_request(&self, account_id: usize) -> Result<(), ServerError>;
 }
 
-pub struct LocalServer {}
+pub struct LocalServer {
+
+}

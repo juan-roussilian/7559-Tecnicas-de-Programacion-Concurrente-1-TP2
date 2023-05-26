@@ -1,26 +1,22 @@
 use actix::dev::SendError;
 use actix::{
-    Actor, ActorFutureExt, Addr, Context, Handler, Message, ResponseActFuture, WrapFuture,
+    Actor, ActorFutureExt, Addr, Context, Handler, ResponseActFuture, WrapFuture,
 };
 use actix_rt::System;
-use async_std::{
-    fs::File,
-    io::{prelude::BufReadExt, BufReader},
-};
-use log::{debug, error, info};
+use log::{debug, error};
 use std::env;
 
-use crate::errors::{CoffeeMakerError, ServerError};
+use crate::errors::{ServerError};
 use crate::messages::{ErrorOpeningFile, OpenFile, OpenedFile, ProcessOrder, ReadAnOrder};
-use crate::order::{ConsumptionType, Order};
+use crate::order::{ConsumptionType};
 use crate::orders_reader::OrdersReader;
 use crate::randomizer::{Randomizer, RealRandomizer};
 use crate::server::Server;
 
 pub struct CoffeeMaker {
     reader_addr: Addr<OrdersReader>,
-    server_conn: dyn Server,
-    order_randomizer: dyn Randomizer,
+    server_conn: Box<dyn Server>,
+    order_randomizer: Box<dyn Randomizer>,
 }
 
 impl Actor for CoffeeMaker {
@@ -55,14 +51,7 @@ impl Handler<ProcessOrder> for CoffeeMaker {
                     self.server_conn
                         .add_points(msg.0.account_id, msg.0.consumption)
                         .into_actor(self)
-                        .map(move |result, me, _ctx| {
-                            if result.is_err() {
-                                error!("[CoffeeMaker] can't connect to server");
-                                return;
-                            }
-                            info!("[CoffeeMaker] asking server to add points");
-                            self.reader_addr.try_send(ReadAnOrder)
-                        }),
+                        .map(handle_server_result),
                 )
             }
             ConsumptionType::Points => Box::pin(
@@ -77,7 +66,7 @@ impl Handler<ProcessOrder> for CoffeeMaker {
                                     self.server_conn
                                         .cancel_point_request(msg.0.account_id)
                                         .into_actor()
-                                        .map(self.handle_server_result()),
+                                        .map(handle_server_result),
                                 )
                             }
 
@@ -85,7 +74,7 @@ impl Handler<ProcessOrder> for CoffeeMaker {
                                 self.server_conn
                                     .take_points(msg.0.account_id, msg.0.consumption)
                                     .into_actor()
-                                    .map(self.handle_server_result()),
+                                    .map(handle_server_result),
                             )
                         }
                         Err(ServerError::ConnectionLost) => {
@@ -101,17 +90,17 @@ impl Handler<ProcessOrder> for CoffeeMaker {
     }
 }
 
-impl CoffeeMaker {
-    fn handle_server_result(
-        &mut self,
-    ) -> fn(Result<(), ServerError>, &mut _, &mut _) -> Result<(), SendError<ReadAnOrder>> {
-        move |result, me, _ctx| match result {
-            Err(e) => {
-                error!("{:?}", e);
-                return;
-            }
-            Ok(()) => self.reader_addr.try_send(ReadAnOrder),
+fn handle_server_result(
+    result: Result<(), ServerError>,
+    coffee_maker: &mut CoffeeMaker,
+    _ctx: &mut Context<CoffeeMaker>,
+) -> Result<(), SendError<ReadAnOrder>> {
+    match result {
+        Err(e) => {
+            error!("{:?}", e);
+            Ok(())
         }
+        Ok(()) => coffee_maker.reader_addr.try_send(ReadAnOrder),
     }
 }
 

@@ -1,6 +1,7 @@
 use crate::coffee_maker::CoffeeMaker;
 use crate::order::Order;
 use actix::Addr;
+use actix::Message;
 
 #[derive(Message)]
 #[rtype(result = "()")]

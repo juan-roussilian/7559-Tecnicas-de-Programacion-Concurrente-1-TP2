@@ -9,7 +9,7 @@ pub struct RealRandomizer {
 }
 
 impl RealRandomizer {
-    pub fn new(success_chance: int) -> Self {
+    pub fn new(success_chance: i32) -> Self {
         Self { success_chance }
     }
 }
