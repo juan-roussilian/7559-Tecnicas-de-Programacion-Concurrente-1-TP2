@@ -16,7 +16,7 @@ impl RealRandomizer {
 
 impl Randomizer for RealRandomizer {
     fn get_random_success(&self) -> bool {
-        let num = rand::thread_rng().gen_range(0..100);
+        let num = rand::thread_rng().gen_range(0, 100);
         num >= self.success_chance
     }
 }
