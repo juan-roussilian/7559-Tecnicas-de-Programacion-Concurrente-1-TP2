@@ -22,3 +22,7 @@ pub struct OpenedFile;
 #[derive(Message)]
 #[rtype(result = "()")]
 pub struct ErrorOpeningFile;
+
+#[derive(Message)]
+#[rtype(result = "()")]
+pub struct FinishedFile;

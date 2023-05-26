@@ -1,10 +1,14 @@
-use actix::{Actor, ActorFutureExt, Addr, Context, Handler, ResponseActFuture, WrapFuture};
+use actix::{
+    Actor, ActorContext, ActorFutureExt, Addr, Context, Handler, ResponseActFuture, WrapFuture,
+};
 use actix_rt::System;
 use log::{debug, error, info};
 use std::env;
 
 use crate::errors::ServerError;
-use crate::messages::{ErrorOpeningFile, OpenFile, OpenedFile, ProcessOrder, ReadAnOrder};
+use crate::messages::{
+    ErrorOpeningFile, FinishedFile, OpenFile, OpenedFile, ProcessOrder, ReadAnOrder,
+};
 use crate::order::ConsumptionType;
 use crate::orders_reader::OrdersReader;
 use crate::randomizer::{Randomizer, RealRandomizer};
@@ -34,6 +38,16 @@ impl Handler<OpenedFile> for CoffeeMaker {
     fn handle(&mut self, _msg: OpenedFile, _ctx: &mut Context<Self>) -> Self::Result {
         debug!("[COFFEE MAKER] Received message to start reading orders");
         self.reader_addr.try_send(ReadAnOrder);
+    }
+}
+
+impl Handler<FinishedFile> for CoffeeMaker {
+    type Result = ();
+
+    fn handle(&mut self, _msg: FinishedFile, ctx: &mut Context<Self>) -> Self::Result {
+        debug!("[COFFEE MAKER] Received message to finish");
+        ctx.stop();
+        System::current().stop();
     }
 }
 

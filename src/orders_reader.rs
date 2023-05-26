@@ -1,10 +1,13 @@
 use std::rc::Rc;
 
 use crate::coffee_maker::CoffeeMaker;
-use crate::messages::{ErrorOpeningFile, OpenFile, OpenedFile, ProcessOrder, ReadAnOrder};
+use crate::messages::{
+    ErrorOpeningFile, FinishedFile, OpenFile, OpenedFile, ProcessOrder, ReadAnOrder,
+};
 use crate::order::Order;
 use actix::{
-    Actor, ActorFutureExt, Addr, Context, Handler, ResponseActFuture, ResponseFuture, WrapFuture,
+    Actor, ActorContext, ActorFutureExt, Addr, AsyncContext, Context, Handler, ResponseActFuture,
+    ResponseFuture, WrapFuture,
 };
 use async_std::fs::File;
 use async_std::io::prelude::BufReadExt;
@@ -16,6 +19,13 @@ pub struct OrdersReader {
     file_name: String,
     file: Option<Rc<Mutex<BufReader<File>>>>,
     coffee_maker_addr: Option<Addr<CoffeeMaker>>,
+}
+
+enum OrdersReaderState {
+    Reading,
+    ErrorReading,
+    ParserErrorRetry,
+    Finished,
 }
 
 impl OrdersReader {
@@ -60,7 +70,7 @@ impl Handler<OpenFile> for OrdersReader {
 }
 
 impl Handler<ReadAnOrder> for OrdersReader {
-    type Result = ResponseFuture<()>;
+    type Result = ResponseActFuture<Self, ()>;
 
     fn handle(&mut self, msg: ReadAnOrder, _ctx: &mut Context<Self>) -> Self::Result {
         debug!("[READER] Received message to read an order from the file");
@@ -76,23 +86,38 @@ impl Handler<ReadAnOrder> for OrdersReader {
             let result = file.read_line(&mut line).await;
             if let Err(e) = result {
                 error!("[READER] Error reading file {:?}", e);
-                // handle error
-                return;
+                return OrdersReaderState::ErrorReading;
             }
             let bytes_read = result.unwrap();
             if bytes_read == 0 {
-                // Done
+                info!("[READER] Finished reading file");
+                return OrdersReaderState::Finished;
             }
             debug!("[READER] Line read from file: {}", line);
             let conversion_result = Order::from_line(&line);
             if let Err(e) = conversion_result {
                 error!("[READER] Error parsing order from file {:?}", e);
-                // handle error
-                return;
+                return OrdersReaderState::ParserErrorRetry;
             }
             coffee_maker_addr.try_send(ProcessOrder(conversion_result.unwrap()));
+            OrdersReaderState::Reading
         };
-
-        Box::pin(future)
+        Box::pin(
+            future
+                .into_actor(self)
+                .map(move |result, me, ctx| match result {
+                    OrdersReaderState::ParserErrorRetry => {
+                        ctx.address().try_send(ReadAnOrder);
+                    }
+                    OrdersReaderState::Reading => {}
+                    _ => {
+                        me.coffee_maker_addr
+                            .as_ref()
+                            .expect("Should not happen")
+                            .try_send(FinishedFile);
+                        ctx.stop();
+                    }
+                }),
+        )
     }
 }
