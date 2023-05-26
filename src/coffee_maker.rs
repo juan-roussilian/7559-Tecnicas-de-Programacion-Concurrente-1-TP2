@@ -1,14 +1,14 @@
-use actix::{ Actor, ActorFutureExt, Addr, Context, Handler, ResponseActFuture, WrapFuture };
+use actix::{Actor, ActorFutureExt, Addr, Context, Handler, ResponseActFuture, WrapFuture};
 use actix_rt::System;
-use log::{ debug, error };
+use log::{debug, error, info};
 use std::env;
 
-use crate::errors::{ ServerError };
-use crate::messages::{ ErrorOpeningFile, OpenFile, OpenedFile, ProcessOrder, ReadAnOrder };
-use crate::order::{ ConsumptionType };
+use crate::errors::ServerError;
+use crate::messages::{ErrorOpeningFile, OpenFile, OpenedFile, ProcessOrder, ReadAnOrder};
+use crate::order::ConsumptionType;
 use crate::orders_reader::OrdersReader;
-use crate::randomizer::{ Randomizer, RealRandomizer };
-use crate::server::{ Server, LocalServer };
+use crate::randomizer::{Randomizer, RealRandomizer};
+use crate::server::{LocalServer, Server};
 
 pub struct CoffeeMaker {
     reader_addr: Addr<OrdersReader>,
@@ -38,44 +38,46 @@ impl Handler<OpenedFile> for CoffeeMaker {
 }
 
 impl Handler<ProcessOrder> for CoffeeMaker {
-    type Result = ResponseActFuture<Self, ()>;
+    type Result = ();
 
     fn handle(&mut self, msg: ProcessOrder, _ctx: &mut Context<Self>) -> Self::Result {
         let order = msg.0;
+        debug!("Received order {:?}", order);
         match order.consumption_type {
             ConsumptionType::Cash => {
                 let _success = self.order_randomizer.get_random_success();
                 // TODO: consultar qué hacer si falla hacer el café con cash.
                 let future = async move {
-                    let result = self.server_conn.add_points(
-                        order.account_id,
-                        order.consumption
-                    ).await;
+                    let result = self
+                        .server_conn
+                        .add_points(order.account_id, order.consumption)
+                        .await;
                     self.handle_server_result(result);
                 };
                 Box::pin(future.into_actor(self).map(move |_result, _me, _ctx| {}))
             }
             ConsumptionType::Points => {
                 let future = async move {
-                    let result = self.server_conn.request_points(
-                        order.account_id,
-                        order.consumption
-                    ).await;
+                    let result = self
+                        .server_conn
+                        .request_points(order.account_id, order.consumption)
+                        .await;
                     match result {
                         Ok(()) => {
                             let success = self.order_randomizer.get_random_success();
                             if !success {
-                                let result = self.server_conn.cancel_point_request(
-                                    order.account_id
-                                ).await;
+                                let result = self
+                                    .server_conn
+                                    .cancel_point_request(order.account_id)
+                                    .await;
                                 self.handle_server_result(result);
                                 return;
                             }
 
-                            let result = self.server_conn.take_points(
-                                order.account_id,
-                                order.consumption
-                            ).await;
+                            let result = self
+                                .server_conn
+                                .take_points(order.account_id, order.consumption)
+                                .await;
                             self.handle_server_result(result);
                         }
                         Err(ServerError::ConnectionLost) => {
