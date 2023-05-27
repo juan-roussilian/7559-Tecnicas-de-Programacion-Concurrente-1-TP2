@@ -23,6 +23,7 @@ pub struct OrdersReader {
     coffee_maker_addr: Option<Addr<CoffeeMaker>>,
 }
 
+#[derive(Debug, PartialEq, Eq)]
 enum OrdersReaderState {
     Reading(Order),
     ErrorReading,
@@ -166,5 +167,67 @@ fn send_message_depending_on_result(
             me.send_message(FinishedFile);
             ctx.stop();
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::order::ConsumptionType;
+
+    use super::*;
+
+    #[actix_rt::test]
+    async fn should_read_a_line_from_the_file_and_return_continue_status_with_order() {
+        let file = File::open(String::from("tests/one_order.csv")).await;
+        if file.is_err() {
+            assert!(false);
+        }
+        let file = file.unwrap();
+        let file = Rc::new(Mutex::new(BufReader::new(file)));
+        let result = read_line_from_file(file).await;
+        match result {
+            OrdersReaderState::Reading(order) => assert_eq!(
+                Order {
+                    consumption_type: ConsumptionType::Cash,
+                    consumption: 500,
+                    account_id: 1,
+                },
+                order
+            ),
+            _ => assert!(false),
+        }
+    }
+
+    #[actix_rt::test]
+    async fn should_return_finished_reading_file() {
+        let file = File::open(String::from("tests/empty_file.csv")).await;
+        if file.is_err() {
+            assert!(false);
+        }
+        let file = file.unwrap();
+        let file = Rc::new(Mutex::new(BufReader::new(file)));
+        let result = read_line_from_file(file).await;
+        assert_eq!(OrdersReaderState::Finished, result);
+    }
+
+    #[actix_rt::test]
+    async fn should_return_parser_error_if_the_file_format_is_wrong() {
+        let file = File::open(String::from("tests/wrong_format.csv")).await;
+        if file.is_err() {
+            assert!(false);
+        }
+        let file = file.unwrap();
+        let file = Rc::new(Mutex::new(BufReader::new(file)));
+        let result = read_line_from_file(file.clone()).await;
+        assert_eq!(OrdersReaderState::ParserErrorRetry, result);
+
+        let result = read_line_from_file(file.clone()).await;
+        assert_eq!(OrdersReaderState::ParserErrorRetry, result);
+
+        let result = read_line_from_file(file.clone()).await;
+        assert_eq!(OrdersReaderState::ParserErrorRetry, result);
+
+        let result = read_line_from_file(file).await;
+        assert_eq!(OrdersReaderState::Finished, result);
     }
 }
