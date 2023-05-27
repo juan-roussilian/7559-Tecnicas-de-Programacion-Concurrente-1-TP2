@@ -1,12 +1,12 @@
 use actix::{
     Actor, ActorContext, ActorFutureExt, Addr, Context, Handler, Message, ResponseActFuture,
-    WrapFuture,
+    ResponseFuture, WrapFuture,
 };
 use actix_rt::System;
 use log::{debug, error, info};
-use std::env;
 
 use crate::errors::ServerError;
+use crate::logger::set_logger_config;
 use crate::messages::{
     ErrorOpeningFile, FinishedFile, OpenFile, OpenedFile, ProcessOrder, ReadAnOrder,
 };
@@ -22,6 +22,18 @@ pub struct CoffeeMaker {
 }
 
 impl CoffeeMaker {
+    fn new(
+        reader_addr: Addr<OrdersReader>,
+        server_port: usize,
+        order_randomizer: Box<dyn Randomizer>,
+    ) -> CoffeeMaker {
+        CoffeeMaker {
+            reader_addr,
+            server_conn: Box::new(LocalServer {}),
+            order_randomizer,
+        }
+    }
+
     fn send_message<ToReaderMessage>(&self, msg: ToReaderMessage)
     where
         OrdersReader: Handler<ToReaderMessage>,
@@ -33,7 +45,24 @@ impl CoffeeMaker {
             System::current().stop();
         }
     }
+
+    fn handle_server_result(&mut self, result: Result<(), ServerError>) {
+        match result {
+            Err(e) => {
+                error!("{:?}", e);
+            }
+            Ok(()) => {
+                self.reader_addr.try_send(ReadAnOrder);
+            }
+        }
+    }
+
+    fn stop_system(self, ctx: &mut Context<Self>) {
+        ctx.stop();
+        System::current().stop();
+    }
 }
+
 impl Actor for CoffeeMaker {
     type Context = Context<Self>;
 }
@@ -41,8 +70,9 @@ impl Actor for CoffeeMaker {
 impl Handler<ErrorOpeningFile> for CoffeeMaker {
     type Result = ();
 
-    fn handle(&mut self, _msg: ErrorOpeningFile, _ctx: &mut Context<Self>) -> Self::Result {
-        debug!("[COFFEE MAKER]");
+    fn handle(&mut self, _msg: ErrorOpeningFile, ctx: &mut Context<Self>) -> Self::Result {
+        debug!("[COFFEE MAKER] Received message of error opening file");
+        self.stop_system(ctx)
     }
 }
 
@@ -51,7 +81,7 @@ impl Handler<OpenedFile> for CoffeeMaker {
 
     fn handle(&mut self, _msg: OpenedFile, _ctx: &mut Context<Self>) -> Self::Result {
         debug!("[COFFEE MAKER] Received message to start reading orders");
-        self.reader_addr.try_send(ReadAnOrder);
+        self.send_message(ReadAnOrder);
     }
 }
 
@@ -60,13 +90,12 @@ impl Handler<FinishedFile> for CoffeeMaker {
 
     fn handle(&mut self, _msg: FinishedFile, ctx: &mut Context<Self>) -> Self::Result {
         debug!("[COFFEE MAKER] Received message to finish");
-        ctx.stop();
-        System::current().stop();
+        self.stop_system(ctx)
     }
 }
 
 impl Handler<ProcessOrder> for CoffeeMaker {
-    type Result = ();
+    type Result = ResponseActFuture<Self, ()>;
 
     fn handle(&mut self, msg: ProcessOrder, _ctx: &mut Context<Self>) -> Self::Result {
         let order = msg.0;
@@ -82,7 +111,7 @@ impl Handler<ProcessOrder> for CoffeeMaker {
                         .await;
                     self.handle_server_result(result);
                 };
-                Box::pin(future.into_actor(self).map(move |_result, _me, _ctx| {}))
+                Box::pin(future)
             }
             ConsumptionType::Points => {
                 let future = async move {
@@ -119,32 +148,9 @@ impl Handler<ProcessOrder> for CoffeeMaker {
                         }
                     }
                 };
-                Box::pin(future.into_actor(self).map(move |result, me, _ctx| {}))
+                Box::pin(future)
             }
         }
-    }
-}
-
-impl CoffeeMaker {
-    fn handle_server_result(&mut self, result: Result<(), ServerError>) {
-        match result {
-            Err(e) => {
-                error!("{:?}", e);
-            }
-            Ok(()) => {
-                self.reader_addr.try_send(ReadAnOrder);
-            }
-        }
-    }
-}
-
-fn set_logger_config() {
-    if env::var("RUST_LOG").is_err() {
-        if let Err(err) = simple_logger::init_with_level(log::Level::Debug) {
-            println!("Error setting logger to default value. Error: {:?}", err);
-        }
-    } else if let Err(err) = simple_logger::init_with_env() {
-        println!("Error setting logger: {:?}", err);
     }
 }
 
@@ -154,11 +160,8 @@ pub fn main_coffee() {
     system.block_on(async {
         let reader = OrdersReader::new(String::from("tests/orders.csv"));
         let reader_addr = reader.start();
-        let coffee_maker = CoffeeMaker {
-            reader_addr: reader_addr.clone(),
-            server_conn: Box::new(LocalServer {}),
-            order_randomizer: Box::new(RealRandomizer::new(80)),
-        };
+        let coffee_maker =
+            CoffeeMaker::new(reader_addr.clone(), 8080, Box::new(RealRandomizer::new(80)));
         let coffee_maker_addr = coffee_maker.start();
         reader_addr.try_send(OpenFile(coffee_maker_addr));
     });
