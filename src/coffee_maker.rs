@@ -1,5 +1,6 @@
 use actix::{
-    Actor, ActorContext, ActorFutureExt, Addr, Context, Handler, ResponseActFuture, WrapFuture,
+    Actor, ActorContext, ActorFutureExt, Addr, Context, Handler, Message, ResponseActFuture,
+    WrapFuture,
 };
 use actix_rt::System;
 use log::{debug, error, info};
@@ -20,6 +21,19 @@ pub struct CoffeeMaker {
     order_randomizer: Box<dyn Randomizer>,
 }
 
+impl CoffeeMaker {
+    fn send_message<ToReaderMessage>(&self, msg: ToReaderMessage)
+    where
+        OrdersReader: Handler<ToReaderMessage>,
+        ToReaderMessage: Message + Send + 'static,
+        ToReaderMessage::Result: Send,
+    {
+        if let Err(e) = self.reader_addr.try_send(msg) {
+            error!("[READER] Error sending message to coffee maker, stopping...");
+            System::current().stop();
+        }
+    }
+}
 impl Actor for CoffeeMaker {
     type Context = Context<Self>;
 }
