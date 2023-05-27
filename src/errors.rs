@@ -1,3 +1,5 @@
+use serde::Deserialize;
+
 #[derive(Debug, PartialEq, Eq)]
 pub enum CoffeeMakerError {
     /// Ocurrio un error al intentar abrir el archivo
@@ -7,11 +9,12 @@ pub enum CoffeeMakerError {
     FileReaderFormatError,
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Deserialize, Debug, PartialEq, Eq)]
 pub enum ServerError {
     AccountNotFound,
     NotEnoughPoints,
     ConnectionLost,
+    SerializationError,
 }
 
 impl From<std::num::ParseIntError> for CoffeeMakerError {

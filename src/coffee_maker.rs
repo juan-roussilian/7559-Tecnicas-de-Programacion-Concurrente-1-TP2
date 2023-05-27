@@ -8,6 +8,7 @@ use actix_rt::System;
 use async_std::sync::Mutex;
 use log::{debug, error};
 
+use crate::connection_protocol::TcpConnection;
 use crate::errors::ServerError;
 use crate::logger::set_logger_config;
 use crate::messages::{
@@ -16,11 +17,11 @@ use crate::messages::{
 use crate::order::ConsumptionType;
 use crate::orders_reader::OrdersReader;
 use crate::randomizer::{Randomizer, RealRandomizer};
-use crate::server::{LocalServer, Server};
+use crate::server::{LocalServer, LocalServerClient};
 
 pub struct CoffeeMaker {
     reader_addr: Addr<OrdersReader>,
-    server_conn: Arc<Mutex<Box<dyn Server>>>,
+    server_conn: Arc<Mutex<Box<dyn LocalServerClient>>>,
     order_randomizer: Arc<Mutex<Box<dyn Randomizer>>>,
 }
 
@@ -32,7 +33,9 @@ impl CoffeeMaker {
     ) -> CoffeeMaker {
         CoffeeMaker {
             reader_addr,
-            server_conn: Arc::new(Mutex::new(Box::new(LocalServer {}))),
+            server_conn: Arc::new(Mutex::new(Box::new(LocalServer {
+                connection: TcpConnection {},
+            }))),
             order_randomizer: Arc::new(Mutex::new(order_randomizer)),
         }
     }
@@ -109,7 +112,7 @@ impl Handler<ProcessOrder> for CoffeeMaker {
         debug!("Received order {:?}", msg.0);
         let order = msg.0;
         let randomizer = self.order_randomizer.clone();
-        let server: Arc<Mutex<Box<dyn Server>>> = self.server_conn.clone();
+        let server: Arc<Mutex<Box<dyn LocalServerClient>>> = self.server_conn.clone();
         match order.consumption_type {
             ConsumptionType::Cash => {
                 // TODO: consultar qué hacer si falla hacer el café con cash.
