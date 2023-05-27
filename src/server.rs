@@ -15,67 +15,71 @@ pub struct LocalServer {}
 impl Server for LocalServer {
     fn add_points<'life0, 'async_trait>(
         &'life0 self,
-        account_id: usize,
-        points: usize
-    )
-        -> core::pin::Pin<
-            Box<
-                dyn core::future::Future<Output = Result<(), ServerError>> +
-                    core::marker::Send +
-                    'async_trait
-            >
-        >
-        where 'life0: 'async_trait, Self: 'async_trait
+        _account_id: usize,
+        _points: usize,
+    ) -> core::pin::Pin<
+        Box<
+            dyn core::future::Future<Output = Result<(), ServerError>>
+                + core::marker::Send
+                + 'async_trait,
+        >,
+    >
+    where
+        'life0: 'async_trait,
+        Self: 'async_trait,
     {
         todo!()
     }
 
     fn request_points<'life0, 'async_trait>(
         &'life0 self,
-        account_id: usize,
-        points: usize
-    )
-        -> core::pin::Pin<
-            Box<
-                dyn core::future::Future<Output = Result<(), ServerError>> +
-                    core::marker::Send +
-                    'async_trait
-            >
-        >
-        where 'life0: 'async_trait, Self: 'async_trait
+        _account_id: usize,
+        _points: usize,
+    ) -> core::pin::Pin<
+        Box<
+            dyn core::future::Future<Output = Result<(), ServerError>>
+                + core::marker::Send
+                + 'async_trait,
+        >,
+    >
+    where
+        'life0: 'async_trait,
+        Self: 'async_trait,
     {
         todo!()
     }
 
     fn take_points<'life0, 'async_trait>(
         &'life0 self,
-        account_id: usize,
-        points: usize
-    )
-        -> core::pin::Pin<
-            Box<
-                dyn core::future::Future<Output = Result<(), ServerError>> +
-                    core::marker::Send +
-                    'async_trait
-            >
-        >
-        where 'life0: 'async_trait, Self: 'async_trait
+        _account_id: usize,
+        _points: usize,
+    ) -> core::pin::Pin<
+        Box<
+            dyn core::future::Future<Output = Result<(), ServerError>>
+                + core::marker::Send
+                + 'async_trait,
+        >,
+    >
+    where
+        'life0: 'async_trait,
+        Self: 'async_trait,
     {
         todo!()
     }
 
     fn cancel_point_request<'life0, 'async_trait>(
         &'life0 self,
-        account_id: usize
-    )
-        -> core::pin::Pin<
-            Box<
-                dyn core::future::Future<Output = Result<(), ServerError>> +
-                    core::marker::Send +
-                    'async_trait
-            >
-        >
-        where 'life0: 'async_trait, Self: 'async_trait
+        _account_id: usize,
+    ) -> core::pin::Pin<
+        Box<
+            dyn core::future::Future<Output = Result<(), ServerError>>
+                + core::marker::Send
+                + 'async_trait,
+        >,
+    >
+    where
+        'life0: 'async_trait,
+        Self: 'async_trait,
     {
         todo!()
     }
