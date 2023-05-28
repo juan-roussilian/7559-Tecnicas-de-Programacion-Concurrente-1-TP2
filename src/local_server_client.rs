@@ -1,3 +1,6 @@
+#[cfg(test)]
+use mockall::automock;
+
 use std::sync::Arc;
 
 use crate::{
@@ -10,6 +13,7 @@ use crate::{
 use async_std::sync::Mutex;
 use async_trait::async_trait;
 
+#[cfg_attr(test, automock)]
 #[async_trait]
 pub trait LocalServerClient {
     async fn add_points(&self, account_id: usize, points: usize) -> Result<(), ServerError>;

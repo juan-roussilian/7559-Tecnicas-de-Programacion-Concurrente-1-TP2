@@ -193,3 +193,130 @@ pub fn main_coffee() {
 
     system.run().unwrap();
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::{
+        local_server_client::MockLocalServerClient, order::ConsumptionType,
+        randomizer::MockRandomizer,
+    };
+
+    use super::*;
+
+    #[actix_rt::test]
+    async fn should_add_points_to_account() {
+        let order = Order {
+            account_id: 100,
+            consumption: 1000,
+            consumption_type: ConsumptionType::Cash,
+        };
+
+        let mut rand_mock = MockRandomizer::new();
+        rand_mock.expect_get_random_success().returning(|| true);
+        let rand_mock: Arc<Mutex<Box<dyn Randomizer>>> = Arc::new(Mutex::new(Box::new(rand_mock)));
+
+        let mut connection_mock = MockLocalServerClient::new();
+        connection_mock.expect_add_points().returning(|_, _| Ok(()));
+        let connection_mock: Arc<Mutex<Box<dyn LocalServerClient>>> =
+            Arc::new(Mutex::new(Box::new(connection_mock)));
+        let result = add_points(order, connection_mock.clone(), rand_mock.clone()).await;
+        assert!(result.is_ok());
+    }
+
+    #[actix_rt::test]
+    async fn should_return_server_error_when_adding_points_if_the_connection_is_lost() {
+        let order = Order {
+            account_id: 100,
+            consumption: 1000,
+            consumption_type: ConsumptionType::Cash,
+        };
+
+        let mut rand_mock = MockRandomizer::new();
+        rand_mock.expect_get_random_success().returning(|| true);
+        let rand_mock: Arc<Mutex<Box<dyn Randomizer>>> = Arc::new(Mutex::new(Box::new(rand_mock)));
+
+        let mut connection_mock = MockLocalServerClient::new();
+        connection_mock
+            .expect_add_points()
+            .returning(|_, _| Err(ServerError::ConnectionLost));
+        let connection_mock: Arc<Mutex<Box<dyn LocalServerClient>>> =
+            Arc::new(Mutex::new(Box::new(connection_mock)));
+        let result = add_points(order, connection_mock.clone(), rand_mock.clone()).await;
+        assert!(result.is_err());
+        assert_eq!(ServerError::ConnectionLost, result.unwrap_err());
+    }
+
+    #[actix_rt::test]
+    async fn should_return_ok_if_the_order_fails_to_be_processed_when_using_points() {
+        let order = Order {
+            account_id: 100,
+            consumption: 1000,
+            consumption_type: ConsumptionType::Points,
+        };
+
+        let mut rand_mock = MockRandomizer::new();
+        rand_mock.expect_get_random_success().returning(|| false);
+        let rand_mock: Arc<Mutex<Box<dyn Randomizer>>> = Arc::new(Mutex::new(Box::new(rand_mock)));
+
+        let mut connection_mock = MockLocalServerClient::new();
+        connection_mock
+            .expect_request_points()
+            .returning(|_, _| Ok(()));
+        connection_mock
+            .expect_cancel_point_request()
+            .returning(|_| Ok(()));
+        let connection_mock: Arc<Mutex<Box<dyn LocalServerClient>>> =
+            Arc::new(Mutex::new(Box::new(connection_mock)));
+        let result = consume_points(order, connection_mock.clone(), rand_mock.clone()).await;
+        assert!(result.is_ok());
+    }
+
+    #[actix_rt::test]
+    async fn should_return_server_error_if_the_order_is_successful_but_lost_connection_when_using_points(
+    ) {
+        let order = Order {
+            account_id: 100,
+            consumption: 1000,
+            consumption_type: ConsumptionType::Points,
+        };
+
+        let mut rand_mock = MockRandomizer::new();
+        rand_mock.expect_get_random_success().returning(|| true);
+        let rand_mock: Arc<Mutex<Box<dyn Randomizer>>> = Arc::new(Mutex::new(Box::new(rand_mock)));
+
+        let mut connection_mock = MockLocalServerClient::new();
+        connection_mock
+            .expect_request_points()
+            .returning(|_, _| Ok(()));
+        connection_mock
+            .expect_take_points()
+            .returning(|_, _| Err(ServerError::ConnectionLost));
+        let connection_mock: Arc<Mutex<Box<dyn LocalServerClient>>> =
+            Arc::new(Mutex::new(Box::new(connection_mock)));
+        let result = consume_points(order, connection_mock.clone(), rand_mock.clone()).await;
+        assert!(result.is_err());
+        assert_eq!(ServerError::ConnectionLost, result.unwrap_err());
+    }
+
+    #[actix_rt::test]
+    async fn should_return_not_enough_points_when_using_points() {
+        let order = Order {
+            account_id: 100,
+            consumption: 1000,
+            consumption_type: ConsumptionType::Points,
+        };
+
+        let rand_mock = MockRandomizer::new();
+        let rand_mock: Arc<Mutex<Box<dyn Randomizer>>> = Arc::new(Mutex::new(Box::new(rand_mock)));
+
+        let mut connection_mock = MockLocalServerClient::new();
+        connection_mock
+            .expect_request_points()
+            .returning(|_, _| Err(ServerError::NotEnoughPoints));
+        let connection_mock: Arc<Mutex<Box<dyn LocalServerClient>>> =
+            Arc::new(Mutex::new(Box::new(connection_mock)));
+        let result = consume_points(order, connection_mock.clone(), rand_mock.clone()).await;
+        assert!(result.is_err());
+        assert_eq!(ServerError::NotEnoughPoints, result.unwrap_err());
+    }
+}

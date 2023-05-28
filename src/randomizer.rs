@@ -1,5 +1,9 @@
+#[cfg(test)]
+use mockall::automock;
+
 use rand::Rng;
 
+#[cfg_attr(test, automock)]
 pub trait Randomizer {
     fn get_random_success(&self) -> bool;
 }
