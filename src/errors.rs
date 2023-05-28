@@ -22,3 +22,9 @@ impl From<std::num::ParseIntError> for CoffeeMakerError {
         CoffeeMakerError::FileReaderFormatError
     }
 }
+
+impl From<Box<bincode::ErrorKind>> for ServerError {
+    fn from(_: Box<bincode::ErrorKind>) -> Self {
+        ServerError::SerializationError
+    }
+}

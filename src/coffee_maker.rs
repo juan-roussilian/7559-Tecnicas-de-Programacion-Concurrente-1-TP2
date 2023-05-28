@@ -8,8 +8,8 @@ use actix_rt::System;
 use async_std::sync::Mutex;
 use log::{debug, error};
 
-use crate::connection_protocol::TcpConnection;
 use crate::errors::ServerError;
+use crate::local_server_client::{LocalServer, LocalServerClient};
 use crate::logger::set_logger_config;
 use crate::messages::{
     ErrorOpeningFile, FinishedFile, OpenFile, OpenedFile, ProcessOrder, ReadAnOrder,
@@ -17,7 +17,6 @@ use crate::messages::{
 use crate::order::ConsumptionType;
 use crate::orders_reader::OrdersReader;
 use crate::randomizer::{Randomizer, RealRandomizer};
-use crate::server::{LocalServer, LocalServerClient};
 
 pub struct CoffeeMaker {
     reader_addr: Addr<OrdersReader>,
@@ -30,14 +29,13 @@ impl CoffeeMaker {
         reader_addr: Addr<OrdersReader>,
         _server_port: usize,
         order_randomizer: Box<dyn Randomizer>,
-    ) -> CoffeeMaker {
-        CoffeeMaker {
+    ) -> Result<CoffeeMaker, ServerError> {
+        let connection = LocalServer::new()?;
+        Ok(CoffeeMaker {
             reader_addr,
-            server_conn: Arc::new(Mutex::new(Box::new(LocalServer {
-                connection: TcpConnection {},
-            }))),
+            server_conn: Arc::new(Mutex::new(Box::new(connection))),
             order_randomizer: Arc::new(Mutex::new(order_randomizer)),
-        }
+        })
     }
 
     fn send_message<ToReaderMessage>(&self, msg: ToReaderMessage)
@@ -167,6 +165,11 @@ pub fn main_coffee() {
         let reader_addr = reader.start();
         let coffee_maker =
             CoffeeMaker::new(reader_addr.clone(), 8080, Box::new(RealRandomizer::new(80)));
+        if coffee_maker.is_err() {
+            System::current().stop();
+            return;
+        }
+        let coffee_maker = coffee_maker.unwrap();
         let coffee_maker_addr = coffee_maker.start();
         if reader_addr.try_send(OpenFile(coffee_maker_addr)).is_err() {
             error!("[COFFEE MAKER] Unable to send OpenFile message to file reader");
