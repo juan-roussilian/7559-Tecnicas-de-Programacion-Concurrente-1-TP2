@@ -14,7 +14,7 @@ use crate::logger::set_logger_config;
 use crate::messages::{
     ErrorOpeningFile, FinishedFile, OpenFile, OpenedFile, ProcessOrder, ReadAnOrder,
 };
-use crate::order::ConsumptionType;
+use crate::order::{ConsumptionType, Order};
 use crate::orders_reader::OrdersReader;
 use crate::randomizer::{Randomizer, RealRandomizer};
 
@@ -110,51 +110,65 @@ impl Handler<ProcessOrder> for CoffeeMaker {
         debug!("Received order {:?}", msg.0);
         let order = msg.0;
         let randomizer = self.order_randomizer.clone();
-        let server: Arc<Mutex<Box<dyn LocalServerClient>>> = self.server_conn.clone();
+        let server = self.server_conn.clone();
         match order.consumption_type {
             ConsumptionType::Cash => {
-                // TODO: consultar qué hacer si falla hacer el café con cash.
-                let future = async move {
-                    let _success = randomizer.lock().await.get_random_success();
-                    let server_conn = server.lock().await;
-                    server_conn
-                        .add_points(order.account_id, order.consumption)
-                        .await
-                };
-                Box::pin(future.into_actor(self).map(|result, me, ctx| {
-                    me.handle_server_result(result, ctx);
-                }))
+                Box::pin(add_points(order, server, randomizer).into_actor(self).map(
+                    |result, me, ctx| {
+                        me.handle_server_result(result, ctx);
+                    },
+                ))
             }
-            ConsumptionType::Points => {
-                let future = async move {
-                    let result = server
-                        .lock()
-                        .await
-                        .request_points(order.account_id, order.consumption)
-                        .await;
-                    if let Ok(()) = result {
-                        let success = randomizer.lock().await.get_random_success();
-                        if !success {
-                            return server
-                                .lock()
-                                .await
-                                .cancel_point_request(order.account_id)
-                                .await;
-                        }
-                        return server
-                            .lock()
-                            .await
-                            .take_points(order.account_id, order.consumption)
-                            .await;
-                    }
-                    result
-                };
-                Box::pin(future.into_actor(self).map(|result, me, ctx| {
-                    me.handle_server_result(result, ctx);
-                }))
-            }
+            ConsumptionType::Points => Box::pin(
+                consume_points(order, server, randomizer)
+                    .into_actor(self)
+                    .map(|result, me, ctx| {
+                        me.handle_server_result(result, ctx);
+                    }),
+            ),
         }
     }
+}
+
+async fn add_points(
+    order: Order,
+    server: Arc<Mutex<Box<dyn LocalServerClient>>>,
+    randomizer: Arc<Mutex<Box<dyn Randomizer>>>,
+) -> Result<(), ServerError> {
+    // TODO: consultar qué hacer si falla hacer el café con cash.
+    let _success = randomizer.lock().await.get_random_success();
+    let server_conn = server.lock().await;
+    server_conn
+        .add_points(order.account_id, order.consumption)
+        .await
+}
+
+async fn consume_points(
+    order: Order,
+    server: Arc<Mutex<Box<dyn LocalServerClient>>>,
+    randomizer: Arc<Mutex<Box<dyn Randomizer>>>,
+) -> Result<(), ServerError> {
+    let result = server
+        .lock()
+        .await
+        .request_points(order.account_id, order.consumption)
+        .await;
+    if let Ok(()) = result {
+        let success = randomizer.lock().await.get_random_success();
+        if !success {
+            return server
+                .lock()
+                .await
+                .cancel_point_request(order.account_id)
+                .await;
+        }
+        return server
+            .lock()
+            .await
+            .take_points(order.account_id, order.consumption)
+            .await;
+    }
+    result
 }
 
 pub fn main_coffee() {
