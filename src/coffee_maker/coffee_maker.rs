@@ -8,15 +8,14 @@ use actix_rt::System;
 use async_std::sync::Mutex;
 use log::{debug, error};
 
-use crate::errors::ServerError;
-use crate::local_server_client::{LocalServer, LocalServerClient};
-use crate::logger::set_logger_config;
-use crate::messages::{
-    ErrorOpeningFile, FinishedFile, OpenFile, OpenedFile, ProcessOrder, ReadAnOrder,
+use crate::actor_messages::{
+    ErrorOpeningFile, FinishedFile, OpenedFile, ProcessOrder, ReadAnOrder,
 };
+use crate::local_server_client::{LocalServer, LocalServerClient};
 use crate::order::{ConsumptionType, Order};
 use crate::orders_reader::OrdersReader;
-use crate::randomizer::{Randomizer, RealRandomizer};
+use crate::randomizer::Randomizer;
+use lib::common_errors::ServerError;
 
 pub struct CoffeeMaker {
     reader_addr: Addr<OrdersReader>,
@@ -25,7 +24,7 @@ pub struct CoffeeMaker {
 }
 
 impl CoffeeMaker {
-    fn new(
+    pub fn new(
         reader_addr: Addr<OrdersReader>,
         _server_port: usize,
         order_randomizer: Box<dyn Randomizer>,
@@ -169,29 +168,6 @@ async fn consume_points(
             .await;
     }
     result
-}
-
-pub fn main_coffee() {
-    let system = System::new();
-    set_logger_config();
-    system.block_on(async {
-        let reader = OrdersReader::new(String::from("tests/orders.csv"));
-        let reader_addr = reader.start();
-        let coffee_maker =
-            CoffeeMaker::new(reader_addr.clone(), 8080, Box::new(RealRandomizer::new(80)));
-        if coffee_maker.is_err() {
-            System::current().stop();
-            return;
-        }
-        let coffee_maker = coffee_maker.unwrap();
-        let coffee_maker_addr = coffee_maker.start();
-        if reader_addr.try_send(OpenFile(coffee_maker_addr)).is_err() {
-            error!("[COFFEE MAKER] Unable to send OpenFile message to file reader");
-            System::current().stop();
-        }
-    });
-
-    system.run().unwrap();
 }
 
 #[cfg(test)]

@@ -1,5 +1,6 @@
-use crate::errors::ServerError;
 use serde::{Deserialize, Serialize};
+
+use crate::common_errors::ServerError;
 
 #[derive(Serialize)]
 pub struct CoffeeMakerRequest {

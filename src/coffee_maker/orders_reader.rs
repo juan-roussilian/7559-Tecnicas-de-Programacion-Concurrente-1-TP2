@@ -1,10 +1,10 @@
 use std::sync::Arc;
 
-use crate::coffee_maker::CoffeeMaker;
-use crate::messages::{
+use crate::actor_messages::{
     ErrorOpeningFile, FinishedFile, OpenFile, OpenedFile, ProcessOrder, ReadAnOrder,
 };
 use crate::order::Order;
+use crate::CoffeeMaker;
 use actix::fut::ready;
 use actix::{
     Actor, ActorContext, ActorFutureExt, Addr, AsyncContext, Context, Handler, Message,

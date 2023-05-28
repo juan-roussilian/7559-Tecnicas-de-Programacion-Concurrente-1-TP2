@@ -6,7 +6,7 @@ use async_std::{
 use async_trait::async_trait;
 use log::{error, info};
 
-use crate::errors::ServerError;
+use crate::common_errors::ServerError;
 
 #[async_trait]
 pub trait ConnectionProtocol {

@@ -3,15 +3,15 @@ use mockall::automock;
 
 use std::sync::Arc;
 
-use crate::{
+use async_std::sync::Mutex;
+use async_trait::async_trait;
+use lib::{
+    common_errors::ServerError,
     connection_protocol::{ConnectionProtocol, TcpConnection},
-    errors::ServerError,
     local_connection_messages::{
         CoffeeMakerRequest, CoffeeMakerResponse, MessageType, ResponseStatus,
     },
 };
-use async_std::sync::Mutex;
-use async_trait::async_trait;
 
 #[cfg_attr(test, automock)]
 #[async_trait]
