@@ -7,12 +7,14 @@ pub mod order;
 pub mod orders_reader;
 
 pub mod coffee_maker;
+pub mod constants;
 
 use actix::Actor;
 use actix_rt::System;
 
 use actor_messages::OpenFile;
 use coffee_maker::CoffeeMaker;
+use constants::SUCCESS_CHANCE;
 use lib::logger::set_logger_config;
 use log::error;
 use orders_reader::OrdersReader;
@@ -24,8 +26,11 @@ pub fn main() {
     system.block_on(async {
         let reader = OrdersReader::new(String::from("tests/orders.csv"));
         let reader_addr = reader.start();
-        let coffee_maker =
-            CoffeeMaker::new(reader_addr.clone(), 8080, Box::new(RealRandomizer::new(80)));
+        let coffee_maker = CoffeeMaker::new(
+            reader_addr.clone(),
+            8080,
+            Box::new(RealRandomizer::new(SUCCESS_CHANCE)),
+        );
         if coffee_maker.is_err() {
             System::current().stop();
             return;

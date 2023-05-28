@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::time::Duration;
 
 use actix::{
     Actor, ActorContext, ActorFutureExt, Addr, Context, Handler, Message, ResponseActFuture,
@@ -11,11 +12,30 @@ use log::{debug, error};
 use crate::actor_messages::{
     ErrorOpeningFile, FinishedFile, OpenedFile, ProcessOrder, ReadAnOrder,
 };
+use crate::constants::PROCESS_ORDER_TIME_IN_MS;
 use crate::local_server_client::{LocalServer, LocalServerClient};
 use crate::order::{ConsumptionType, Order};
 use crate::orders_reader::OrdersReader;
 use crate::randomizer::Randomizer;
 use lib::common_errors::ServerError;
+
+use self::sync::sleep;
+
+mod sync {
+    use std::time::Duration;
+
+    #[cfg(not(test))]
+    pub(crate) async fn sleep(d: Duration) {
+        use async_std::task;
+        task::sleep(d).await;
+    }
+
+    #[cfg(test)]
+    pub(crate) async fn sleep(_: Duration) {
+        use async_std::future::ready;
+        ready(0).await;
+    }
+}
 
 pub struct CoffeeMaker {
     reader_addr: Addr<OrdersReader>,
@@ -135,6 +155,7 @@ async fn add_points(
     randomizer: Arc<Mutex<Box<dyn Randomizer>>>,
 ) -> Result<(), ServerError> {
     // TODO: consultar qué hacer si falla hacer el café con cash.
+    sleep(Duration::from_millis(PROCESS_ORDER_TIME_IN_MS)).await;
     let _success = randomizer.lock().await.get_random_success();
     let server_conn = server.lock().await;
     server_conn
@@ -153,6 +174,7 @@ async fn consume_points(
         .request_points(order.account_id, order.consumption)
         .await;
     if let Ok(()) = result {
+        sleep(Duration::from_millis(PROCESS_ORDER_TIME_IN_MS)).await;
         let success = randomizer.lock().await.get_random_success();
         if !success {
             return server
