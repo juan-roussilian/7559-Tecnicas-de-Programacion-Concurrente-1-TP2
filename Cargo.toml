@@ -9,6 +9,10 @@ edition = "2021"
 name = "coffee_maker"
 path = "src/coffee_maker/main.rs"
 
+[[bin]]
+name = "server"
+path = "src/server/main.rs"
+
 [lib]
 name = "lib"
 path = "src/common/lib.rs"
