@@ -1,15 +1,15 @@
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
-#[derive(Deserialize, Debug, PartialEq, Eq)]
-pub enum ServerError {
+#[derive(Deserialize, Serialize, Debug, PartialEq, Eq)]
+pub enum ConnectionError {
     AccountNotFound,
     NotEnoughPoints,
     ConnectionLost,
     SerializationError,
 }
 
-impl From<Box<bincode::ErrorKind>> for ServerError {
+impl From<Box<bincode::ErrorKind>> for ConnectionError {
     fn from(_: Box<bincode::ErrorKind>) -> Self {
-        ServerError::SerializationError
+        ConnectionError::SerializationError
     }
 }

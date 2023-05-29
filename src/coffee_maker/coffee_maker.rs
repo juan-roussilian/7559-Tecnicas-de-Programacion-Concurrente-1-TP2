@@ -17,7 +17,7 @@ use crate::local_server_client::{LocalServer, LocalServerClient};
 use crate::order::{ConsumptionType, Order};
 use crate::orders_reader::OrdersReader;
 use crate::randomizer::Randomizer;
-use lib::common_errors::ServerError;
+use lib::common_errors::ConnectionError;
 
 use self::sync::sleep;
 
@@ -48,7 +48,7 @@ impl CoffeeMaker {
         reader_addr: Addr<OrdersReader>,
         _server_port: usize,
         order_randomizer: Box<dyn Randomizer>,
-    ) -> Result<CoffeeMaker, ServerError> {
+    ) -> Result<CoffeeMaker, ConnectionError> {
         let connection = LocalServer::new()?;
         Ok(CoffeeMaker {
             reader_addr,
@@ -69,9 +69,13 @@ impl CoffeeMaker {
         }
     }
 
-    fn handle_server_result(&mut self, result: Result<(), ServerError>, ctx: &mut Context<Self>) {
+    fn handle_server_result(
+        &mut self,
+        result: Result<(), ConnectionError>,
+        ctx: &mut Context<Self>,
+    ) {
         match result {
-            Err(ServerError::ConnectionLost) => {
+            Err(ConnectionError::ConnectionLost) => {
                 error!("[CoffeeMaker] can't connect to server,, stopping...");
                 self.stop_system(ctx);
             }
@@ -153,7 +157,7 @@ async fn add_points(
     order: Order,
     server: Arc<Mutex<Box<dyn LocalServerClient>>>,
     randomizer: Arc<Mutex<Box<dyn Randomizer>>>,
-) -> Result<(), ServerError> {
+) -> Result<(), ConnectionError> {
     // TODO: consultar qué hacer si falla hacer el café con cash.
     sleep(Duration::from_millis(PROCESS_ORDER_TIME_IN_MS)).await;
     let _success = randomizer.lock().await.get_random_success();
@@ -167,7 +171,7 @@ async fn consume_points(
     order: Order,
     server: Arc<Mutex<Box<dyn LocalServerClient>>>,
     randomizer: Arc<Mutex<Box<dyn Randomizer>>>,
-) -> Result<(), ServerError> {
+) -> Result<(), ConnectionError> {
     let result = server
         .lock()
         .await
@@ -236,12 +240,12 @@ mod tests {
         let mut connection_mock = MockLocalServerClient::new();
         connection_mock
             .expect_add_points()
-            .returning(|_, _| Err(ServerError::ConnectionLost));
+            .returning(|_, _| Err(ConnectionError::ConnectionLost));
         let connection_mock: Arc<Mutex<Box<dyn LocalServerClient>>> =
             Arc::new(Mutex::new(Box::new(connection_mock)));
         let result = add_points(order, connection_mock.clone(), rand_mock.clone()).await;
         assert!(result.is_err());
-        assert_eq!(ServerError::ConnectionLost, result.unwrap_err());
+        assert_eq!(ConnectionError::ConnectionLost, result.unwrap_err());
     }
 
     #[actix_rt::test]
@@ -288,12 +292,12 @@ mod tests {
             .returning(|_, _| Ok(()));
         connection_mock
             .expect_take_points()
-            .returning(|_, _| Err(ServerError::ConnectionLost));
+            .returning(|_, _| Err(ConnectionError::ConnectionLost));
         let connection_mock: Arc<Mutex<Box<dyn LocalServerClient>>> =
             Arc::new(Mutex::new(Box::new(connection_mock)));
         let result = consume_points(order, connection_mock.clone(), rand_mock.clone()).await;
         assert!(result.is_err());
-        assert_eq!(ServerError::ConnectionLost, result.unwrap_err());
+        assert_eq!(ConnectionError::ConnectionLost, result.unwrap_err());
     }
 
     #[actix_rt::test]
@@ -310,11 +314,11 @@ mod tests {
         let mut connection_mock = MockLocalServerClient::new();
         connection_mock
             .expect_request_points()
-            .returning(|_, _| Err(ServerError::NotEnoughPoints));
+            .returning(|_, _| Err(ConnectionError::NotEnoughPoints));
         let connection_mock: Arc<Mutex<Box<dyn LocalServerClient>>> =
             Arc::new(Mutex::new(Box::new(connection_mock)));
         let result = consume_points(order, connection_mock.clone(), rand_mock.clone()).await;
         assert!(result.is_err());
-        assert_eq!(ServerError::NotEnoughPoints, result.unwrap_err());
+        assert_eq!(ConnectionError::NotEnoughPoints, result.unwrap_err());
     }
 }

@@ -6,12 +6,12 @@ use async_std::{
 use async_trait::async_trait;
 use log::{error, info};
 
-use crate::common_errors::ServerError;
+use crate::common_errors::ConnectionError;
 
 #[async_trait]
 pub trait ConnectionProtocol {
-    async fn send(&mut self, data: &Vec<u8>) -> Result<(), ServerError>;
-    async fn recv(&mut self) -> Result<Vec<u8>, ServerError>;
+    async fn send(&mut self, data: &Vec<u8>) -> Result<(), ConnectionError>;
+    async fn recv(&mut self) -> Result<Vec<u8>, ConnectionError>;
 }
 
 pub struct TcpConnection {
@@ -20,13 +20,13 @@ pub struct TcpConnection {
 }
 
 impl TcpConnection {
-    pub fn new() -> Result<TcpConnection, ServerError> {
+    pub fn new_client_connection() -> Result<TcpConnection, ConnectionError> {
         // TODO revisar
-        let result = task::block_on(TcpStream::connect("127.0.0.1:12345"));
+        let result = task::block_on(TcpStream::connect("127.0.0.1:8888"));
         match result {
             Err(e) => {
                 error!("[TCP CONNECTION] Error connecting to server, {}", e);
-                Err(ServerError::ConnectionLost)
+                Err(ConnectionError::ConnectionLost)
             }
             Ok(stream) => {
                 info!("[TCP CONNECTION] Established connection to local server");
@@ -37,11 +37,18 @@ impl TcpConnection {
             }
         }
     }
+
+    pub fn new_server_connection(stream: TcpStream) -> TcpConnection {
+        TcpConnection {
+            writer: stream.clone(),
+            reader: BufReader::new(stream),
+        }
+    }
 }
 
 #[async_trait]
 impl ConnectionProtocol for TcpConnection {
-    async fn send(&mut self, data: &Vec<u8>) -> Result<(), ServerError> {
+    async fn send(&mut self, data: &Vec<u8>) -> Result<(), ConnectionError> {
         match self.writer.write_all(data).await {
             Ok(()) => Ok(()),
             Err(error) => {
@@ -49,16 +56,16 @@ impl ConnectionProtocol for TcpConnection {
                     "[TCP CONNECTION] Error sending message to server, {}",
                     error
                 );
-                Err(ServerError::ConnectionLost)
+                Err(ConnectionError::ConnectionLost)
             }
         }
     }
-    async fn recv(&mut self) -> Result<Vec<u8>, ServerError> {
+    async fn recv(&mut self) -> Result<Vec<u8>, ConnectionError> {
         let mut buffer = String::new();
         match self.reader.read_line(&mut buffer).await {
             Ok(read) => {
                 if read == 0 {
-                    return Err(ServerError::ConnectionLost);
+                    return Err(ConnectionError::ConnectionLost);
                 }
                 Ok(buffer.as_bytes().to_vec())
             }
@@ -67,7 +74,7 @@ impl ConnectionProtocol for TcpConnection {
                     "[TCP CONNECTION] Error receiving message from server, {}",
                     error
                 );
-                Err(ServerError::ConnectionLost)
+                Err(ConnectionError::ConnectionLost)
             }
         }
     }

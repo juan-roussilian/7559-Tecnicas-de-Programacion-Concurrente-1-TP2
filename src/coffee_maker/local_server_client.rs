@@ -6,7 +6,7 @@ use std::sync::Arc;
 use async_std::sync::Mutex;
 use async_trait::async_trait;
 use lib::{
-    common_errors::ServerError,
+    common_errors::ConnectionError,
     connection_protocol::{ConnectionProtocol, TcpConnection},
     local_connection_messages::{
         CoffeeMakerRequest, CoffeeMakerResponse, MessageType, ResponseStatus,
@@ -16,10 +16,11 @@ use lib::{
 #[cfg_attr(test, automock)]
 #[async_trait]
 pub trait LocalServerClient {
-    async fn add_points(&self, account_id: usize, points: usize) -> Result<(), ServerError>;
-    async fn request_points(&self, account_id: usize, points: usize) -> Result<(), ServerError>;
-    async fn take_points(&self, account_id: usize, points: usize) -> Result<(), ServerError>;
-    async fn cancel_point_request(&self, account_id: usize) -> Result<(), ServerError>;
+    async fn add_points(&self, account_id: usize, points: usize) -> Result<(), ConnectionError>;
+    async fn request_points(&self, account_id: usize, points: usize)
+        -> Result<(), ConnectionError>;
+    async fn take_points(&self, account_id: usize, points: usize) -> Result<(), ConnectionError>;
+    async fn cancel_point_request(&self, account_id: usize) -> Result<(), ConnectionError>;
 }
 
 pub struct LocalServer {
@@ -27,8 +28,8 @@ pub struct LocalServer {
 }
 
 impl LocalServer {
-    pub fn new() -> Result<LocalServer, ServerError> {
-        let protocol = TcpConnection::new()?;
+    pub fn new() -> Result<LocalServer, ConnectionError> {
+        let protocol = TcpConnection::new_client_connection()?;
         Ok(LocalServer {
             connection: Arc::new(Mutex::new(Box::new(protocol))),
         })
@@ -40,7 +41,7 @@ async fn handle_request(
     message_type: MessageType,
     account_id: usize,
     points: usize,
-) -> Result<(), ServerError> {
+) -> Result<(), ConnectionError> {
     let req = CoffeeMakerRequest {
         message_type,
         account_id,
@@ -59,7 +60,7 @@ async fn handle_request(
 
 #[async_trait]
 impl LocalServerClient for LocalServer {
-    async fn add_points(&self, account_id: usize, points: usize) -> Result<(), ServerError> {
+    async fn add_points(&self, account_id: usize, points: usize) -> Result<(), ConnectionError> {
         handle_request(
             self.connection.clone(),
             MessageType::AddPoints,
@@ -68,17 +69,20 @@ impl LocalServerClient for LocalServer {
         )
         .await
     }
-    async fn request_points(&self, account_id: usize, points: usize) -> Result<(), ServerError> {
-        let connection = &self.connection;
+    async fn request_points(
+        &self,
+        account_id: usize,
+        points: usize,
+    ) -> Result<(), ConnectionError> {
         handle_request(
-            connection.clone(),
+            self.connection.clone(),
             MessageType::RequestPoints,
             account_id,
             points,
         )
         .await
     }
-    async fn take_points(&self, account_id: usize, points: usize) -> Result<(), ServerError> {
+    async fn take_points(&self, account_id: usize, points: usize) -> Result<(), ConnectionError> {
         handle_request(
             self.connection.clone(),
             MessageType::TakePoints,
@@ -87,7 +91,7 @@ impl LocalServerClient for LocalServer {
         )
         .await
     }
-    async fn cancel_point_request(&self, account_id: usize) -> Result<(), ServerError> {
+    async fn cancel_point_request(&self, account_id: usize) -> Result<(), ConnectionError> {
         handle_request(
             self.connection.clone(),
             MessageType::CancelPointsRequest,
