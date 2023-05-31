@@ -61,13 +61,14 @@ impl ConnectionProtocol for TcpConnection {
         }
     }
     async fn recv(&mut self) -> Result<Vec<u8>, ConnectionError> {
-        let mut buffer = String::new();
-        match self.reader.read_line(&mut buffer).await {
+        let mut buffer = Vec::new();
+        match self.reader.read_until(b';', &mut buffer).await {
             Ok(read) => {
                 if read == 0 {
                     return Err(ConnectionError::ConnectionLost);
                 }
-                Ok(buffer.as_bytes().to_vec())
+                buffer.pop();
+                Ok(buffer)
             }
             Err(error) => {
                 error!(

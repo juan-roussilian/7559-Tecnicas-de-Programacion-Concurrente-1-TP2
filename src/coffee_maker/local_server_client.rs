@@ -47,7 +47,8 @@ async fn handle_request(
         account_id,
         points,
     };
-    let serialized = bincode::serialize(&req)?;
+    let mut serialized = bincode::serialize(&req)?;
+    serialized.push(b';');
     let mut connection = connection.lock().await;
     connection.send(&serialized).await?;
     let encoded = connection.recv().await?;
