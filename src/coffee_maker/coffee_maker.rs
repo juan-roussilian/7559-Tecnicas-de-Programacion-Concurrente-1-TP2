@@ -158,9 +158,11 @@ async fn add_points(
     server: Arc<Mutex<Box<dyn LocalServerClient>>>,
     randomizer: Arc<Mutex<Box<dyn Randomizer>>>,
 ) -> Result<(), ConnectionError> {
-    // TODO: consultar qué hacer si falla hacer el café con cash.
     sleep(Duration::from_millis(PROCESS_ORDER_TIME_IN_MS)).await;
-    let _success = randomizer.lock().await.get_random_success();
+    let success = randomizer.lock().await.get_random_success();
+    if !success {
+        return Ok(());
+    }
     let server_conn = server.lock().await;
     server_conn
         .add_points(order.account_id, order.consumption)
@@ -219,6 +221,25 @@ mod tests {
 
         let mut connection_mock = MockLocalServerClient::new();
         connection_mock.expect_add_points().returning(|_, _| Ok(()));
+        let connection_mock: Arc<Mutex<Box<dyn LocalServerClient>>> =
+            Arc::new(Mutex::new(Box::new(connection_mock)));
+        let result = add_points(order, connection_mock.clone(), rand_mock.clone()).await;
+        assert!(result.is_ok());
+    }
+
+    #[actix_rt::test]
+    async fn should_return_ok_if_the_coffee_fails_when_adding_points() {
+        let order = Order {
+            account_id: 100,
+            consumption: 1000,
+            consumption_type: ConsumptionType::Cash,
+        };
+
+        let mut rand_mock = MockRandomizer::new();
+        rand_mock.expect_get_random_success().returning(|| false);
+        let rand_mock: Arc<Mutex<Box<dyn Randomizer>>> = Arc::new(Mutex::new(Box::new(rand_mock)));
+
+        let connection_mock = MockLocalServerClient::new();
         let connection_mock: Arc<Mutex<Box<dyn LocalServerClient>>> =
             Arc::new(Mutex::new(Box::new(connection_mock)));
         let result = add_points(order, connection_mock.clone(), rand_mock.clone()).await;
