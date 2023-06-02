@@ -8,7 +8,7 @@ use crate::errors::ServerError;
 
 #[async_trait]
 pub trait ConnectionServer {
-    async fn listen(&self) -> Result<Box<dyn ConnectionProtocol>, ServerError>;
+    async fn listen(&self) -> Result<Box<dyn ConnectionProtocol + Send>, ServerError>;
 }
 
 pub struct TcpConnectionServer {
@@ -29,7 +29,7 @@ impl TcpConnectionServer {
 
 #[async_trait]
 impl ConnectionServer for TcpConnectionServer {
-    async fn listen(&self) -> Result<Box<dyn ConnectionProtocol>, ServerError> {
+    async fn listen(&self) -> Result<Box<dyn ConnectionProtocol + Send>, ServerError> {
         let result = self.listener.accept().await;
         match result {
             Ok((tcp_stream, addr)) => {

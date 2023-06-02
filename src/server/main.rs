@@ -12,7 +12,7 @@ fn main() {
     set_logger_config();
     system.block_on(async {
         let coffee_server = CoffeeMakerServer::new();
-        let coffee_server = coffee_server.unwrap();
+        let mut coffee_server = coffee_server.unwrap();
         coffee_server.listen().await;
     });
 

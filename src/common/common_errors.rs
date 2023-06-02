@@ -5,6 +5,7 @@ pub enum ConnectionError {
     AccountNotFound,
     NotEnoughPoints,
     ConnectionLost,
+    ConnectionClosed,
     SerializationError,
 }
 
