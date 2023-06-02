@@ -130,7 +130,7 @@ impl Handler<ProcessOrder> for CoffeeMaker {
     type Result = ResponseActFuture<Self, ()>;
 
     fn handle(&mut self, msg: ProcessOrder, _ctx: &mut Context<Self>) -> Self::Result {
-        debug!("Received order {:?}", msg.0);
+        debug!("[COFFEE MAKER] Processing order: {:?}", msg.0);
         let order = msg.0;
         let randomizer = self.order_randomizer.clone();
         let server = self.server_conn.clone();
@@ -161,6 +161,7 @@ async fn add_points(
     sleep(Duration::from_millis(PROCESS_ORDER_TIME_IN_MS)).await;
     let success = randomizer.lock().await.get_random_success();
     if !success {
+        debug!("[COFFEE MAKER] Failed to process order of cash");
         return Ok(());
     }
     let server_conn = server.lock().await;
@@ -183,6 +184,7 @@ async fn consume_points(
         sleep(Duration::from_millis(PROCESS_ORDER_TIME_IN_MS)).await;
         let success = randomizer.lock().await.get_random_success();
         if !success {
+            debug!("[COFFEE MAKER] Failed to process order of points");
             return server
                 .lock()
                 .await
