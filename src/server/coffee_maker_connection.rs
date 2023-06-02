@@ -1,6 +1,8 @@
 use lib::{
-    common_errors::ConnectionError, connection_protocol::ConnectionProtocol,
-    local_connection_messages::CoffeeMakerRequest,
+    common_errors::ConnectionError,
+    connection_protocol::ConnectionProtocol,
+    local_connection_messages::{CoffeeMakerRequest, CoffeeMakerResponse, ResponseStatus},
+    serializer::{deserialize, serialize},
 };
 use log::info;
 
@@ -15,12 +17,15 @@ impl CoffeeMakerConnection {
 
     pub async fn receive_messages(&mut self) -> Result<(), ConnectionError> {
         loop {
-            info!("Recv from coffee");
-            let encoded = self.connection.recv().await?;
-            let decoded: CoffeeMakerRequest = bincode::deserialize(&encoded[..])?;
+            let mut encoded = self.connection.recv().await?;
+            let decoded: CoffeeMakerRequest = deserialize(&mut encoded)?;
             info!("{:?}", decoded);
-
-            //self.connection.send().await?;
+            let response = CoffeeMakerResponse {
+                message_type: decoded.message_type,
+                status: ResponseStatus::Ok,
+            };
+            let serialized = serialize(&response)?;
+            self.connection.send(&serialized).await?;
         }
     }
 }

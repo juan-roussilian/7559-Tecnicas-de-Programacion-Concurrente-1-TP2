@@ -10,7 +10,7 @@ use crate::common_errors::ConnectionError;
 
 #[async_trait]
 pub trait ConnectionProtocol {
-    async fn send(&mut self, data: &Vec<u8>) -> Result<(), ConnectionError>;
+    async fn send(&mut self, data: &[u8]) -> Result<(), ConnectionError>;
     async fn recv(&mut self) -> Result<Vec<u8>, ConnectionError>;
 }
 
@@ -48,7 +48,7 @@ impl TcpConnection {
 
 #[async_trait]
 impl ConnectionProtocol for TcpConnection {
-    async fn send(&mut self, data: &Vec<u8>) -> Result<(), ConnectionError> {
+    async fn send(&mut self, data: &[u8]) -> Result<(), ConnectionError> {
         match self.writer.write_all(data).await {
             Ok(()) => Ok(()),
             Err(error) => {
@@ -67,7 +67,6 @@ impl ConnectionProtocol for TcpConnection {
                 if read == 0 {
                     return Err(ConnectionError::ConnectionLost);
                 }
-                buffer.pop();
                 Ok(buffer)
             }
             Err(error) => {

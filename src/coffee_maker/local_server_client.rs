@@ -11,6 +11,7 @@ use lib::{
     local_connection_messages::{
         CoffeeMakerRequest, CoffeeMakerResponse, MessageType, ResponseStatus,
     },
+    serializer::{deserialize, serialize},
 };
 
 #[cfg_attr(test, automock)]
@@ -47,12 +48,11 @@ async fn handle_request(
         account_id,
         points,
     };
-    let mut serialized = bincode::serialize(&req)?;
-    serialized.push(b';');
+    let serialized = serialize(&req)?;
     let mut connection = connection.lock().await;
     connection.send(&serialized).await?;
-    let encoded = connection.recv().await?;
-    let decoded: CoffeeMakerResponse = bincode::deserialize(&encoded[..])?;
+    let mut encoded = connection.recv().await?;
+    let decoded: CoffeeMakerResponse = deserialize(&mut encoded)?;
     match decoded.status {
         ResponseStatus::Ok => Ok(()),
         ResponseStatus::Err(error) => Err(error),

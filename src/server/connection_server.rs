@@ -41,7 +41,7 @@ impl ConnectionServer for TcpConnectionServer {
                 Ok(Box::new(conn))
             }
             Err(e) => {
-                error!("[COFFEE MAKER SERVER] Error accepting connection");
+                error!("[COFFEE MAKER SERVER] Error accepting connection {}", e);
                 Err(ServerError::AcceptError)
             }
         }
