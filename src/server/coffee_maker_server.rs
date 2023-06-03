@@ -1,9 +1,9 @@
-use async_std::{task};
+use async_std::task;
 use lib::common_errors::ConnectionError;
 use lib::local_connection_messages::{CoffeeMakerRequest, CoffeeMakerResponse};
 use log::error;
+use std::sync::mpsc;
 use std::sync::mpsc::Sender;
-use std::sync::{mpsc};
 use std::thread;
 use std::thread::JoinHandle;
 

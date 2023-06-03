@@ -7,7 +7,7 @@ use lib::logger::set_logger_config;
 use log::error;
 use server_args::ServerArgs;
 
-pub mod channel_messages;
+pub mod broadcaster;
 pub mod coffee_maker_connection;
 pub mod coffee_maker_server;
 pub mod connection_server;
@@ -15,6 +15,7 @@ pub mod errors;
 pub mod orders_manager;
 pub mod orders_queue;
 pub mod server_args;
+pub mod server_messages;
 
 fn get_args() -> Result<ServerArgs, ServerError> {
     let args: Vec<String> = env::args().collect();

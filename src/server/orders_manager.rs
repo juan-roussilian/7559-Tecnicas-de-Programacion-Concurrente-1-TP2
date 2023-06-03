@@ -3,23 +3,28 @@ use std::sync::Arc;
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Condvar, Mutex};
 
-use crate::channel_messages::{PointsRequest, TakePoints};
+use lib::local_connection_messages::{
+    CoffeeMakerRequest, CoffeeMakerResponse, MessageType, ResponseStatus,
+};
+
+use crate::broadcaster::broadcast_message;
 use crate::errors::ServerError;
 use crate::orders_queue::OrdersQueue;
+use crate::server_messages::{AccountChange, ServerMessage};
 
 pub struct OrdersManager {
     orders: Arc<Mutex<OrdersQueue>>,
     orders_cond: Arc<Condvar>,
-    request_points_channel: Sender<PointsRequest>,
-    result_take_points_channel: Receiver<TakePoints>,
+    request_points_channel: Sender<(CoffeeMakerResponse, usize)>,
+    result_take_points_channel: Receiver<CoffeeMakerRequest>,
 }
 
 impl OrdersManager {
     pub fn new(
         orders: Arc<Mutex<OrdersQueue>>,
         orders_cond: Arc<Condvar>,
-        request_points_channel: Sender<PointsRequest>,
-        result_take_points_channel: Receiver<TakePoints>,
+        request_points_channel: Sender<(CoffeeMakerResponse, usize)>,
+        result_take_points_channel: Receiver<CoffeeMakerRequest>,
     ) -> OrdersManager {
         OrdersManager {
             orders,
@@ -37,7 +42,10 @@ impl OrdersManager {
             let adding_orders = orders.get_and_clear_adding_orders();
             for order in adding_orders {
                 // TODO agregar puntos a la db local
-                // TODO hacer broadcast de los cambios a los demas servidores
+                broadcast_message(ServerMessage::AddPoints(AccountChange {
+                    account_id: order.account_id,
+                    points: order.points,
+                }));
             }
 
             let request_points_orders = orders.get_and_clear_request_points_orders();
@@ -47,10 +55,13 @@ impl OrdersManager {
                 // if alcanzan los puntos {
                 total_request_orders += 1;
                 //}
-                let result = self.request_points_channel.send(PointsRequest {
-                    coffee_maker_id: 0, /* sacar el id */
-                    account_id: order.account_id,
-                });
+                let result = self.request_points_channel.send((
+                    CoffeeMakerResponse {
+                        message_type: MessageType::RequestPoints,
+                        status: ResponseStatus::Ok, /* obtener el status */
+                    },
+                    0, /* obtener el id */
+                ));
                 if result.is_err() {
                     return Err(ServerError::ChannelError);
                 }
@@ -63,7 +74,10 @@ impl OrdersManager {
                 }
                 let result = result.unwrap();
                 // TODO restar los puntos locales si corresponde
-                // TODO broadcast de la resta si corresponde
+                broadcast_message(ServerMessage::TakePoints(AccountChange {
+                    account_id: result.account_id,
+                    points: result.points,
+                }));
             }
             self.orders_cond.notify_all();
         }
