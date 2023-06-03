@@ -5,13 +5,9 @@ pub enum CoffeeMakerError {
 
     /// Ocurrio un error al leer del archivo. Puede darse si tiene un formato equivocado
     FileReaderFormatError,
-}
 
-#[derive(Debug, PartialEq, Eq)]
-pub enum ServerError {
-    AccountNotFound,
-    NotEnoughPoints,
-    ConnectionLost,
+    /// Faltan argumentos al iniciar la aplicacion
+    ArgsMissing,
 }
 
 impl From<std::num::ParseIntError> for CoffeeMakerError {

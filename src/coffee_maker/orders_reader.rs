@@ -1,10 +1,10 @@
-use std::rc::Rc;
+use std::sync::Arc;
 
-use crate::coffee_maker::CoffeeMaker;
-use crate::messages::{
+use crate::actor_messages::{
     ErrorOpeningFile, FinishedFile, OpenFile, OpenedFile, ProcessOrder, ReadAnOrder,
 };
 use crate::order::Order;
+use crate::CoffeeMaker;
 use actix::fut::ready;
 use actix::{
     Actor, ActorContext, ActorFutureExt, Addr, AsyncContext, Context, Handler, Message,
@@ -19,7 +19,7 @@ use log::{debug, error, info};
 
 pub struct OrdersReader {
     file_name: String,
-    file: Option<Rc<Mutex<BufReader<File>>>>,
+    file: Option<Arc<Mutex<BufReader<File>>>>,
     coffee_maker_addr: Option<Addr<CoffeeMaker>>,
 }
 
@@ -113,7 +113,7 @@ impl Handler<ReadAnOrder> for OrdersReader {
     }
 }
 
-async fn read_line_from_file(file: Rc<Mutex<BufReader<File>>>) -> OrdersReaderState {
+async fn read_line_from_file(file: Arc<Mutex<BufReader<File>>>) -> OrdersReaderState {
     let mut file = file.lock().await;
     let mut line = String::new();
     let result = file.read_line(&mut line).await;
@@ -147,7 +147,7 @@ fn handle_opened_file(
         return;
     }
     info!("[READER] Opened file: {}", me.file_name);
-    me.file = Some(Rc::new(Mutex::new(BufReader::new(result.unwrap()))));
+    me.file = Some(Arc::new(Mutex::new(BufReader::new(result.unwrap()))));
     me.send_message(OpenedFile);
 }
 
@@ -183,7 +183,7 @@ mod tests {
             assert!(false);
         }
         let file = file.unwrap();
-        let file = Rc::new(Mutex::new(BufReader::new(file)));
+        let file = Arc::new(Mutex::new(BufReader::new(file)));
         let result = read_line_from_file(file).await;
         match result {
             OrdersReaderState::Reading(order) => assert_eq!(
@@ -205,7 +205,7 @@ mod tests {
             assert!(false);
         }
         let file = file.unwrap();
-        let file = Rc::new(Mutex::new(BufReader::new(file)));
+        let file = Arc::new(Mutex::new(BufReader::new(file)));
         let result = read_line_from_file(file).await;
         assert_eq!(OrdersReaderState::Finished, result);
     }
@@ -217,7 +217,7 @@ mod tests {
             assert!(false);
         }
         let file = file.unwrap();
-        let file = Rc::new(Mutex::new(BufReader::new(file)));
+        let file = Arc::new(Mutex::new(BufReader::new(file)));
         let result = read_line_from_file(file.clone()).await;
         assert_eq!(OrdersReaderState::ParserErrorRetry, result);
 
