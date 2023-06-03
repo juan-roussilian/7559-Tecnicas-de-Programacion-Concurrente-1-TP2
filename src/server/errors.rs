@@ -5,6 +5,7 @@ pub enum ServerError {
     ArgsMissing,
     ArgsFormat,
     LockError,
+    ChannelError,
 }
 
 impl<T> From<std::sync::PoisonError<T>> for ServerError {

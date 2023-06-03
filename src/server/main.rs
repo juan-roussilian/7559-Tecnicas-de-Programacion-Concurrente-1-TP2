@@ -7,6 +7,7 @@ use lib::logger::set_logger_config;
 use log::error;
 use server_args::ServerArgs;
 
+pub mod channel_messages;
 pub mod coffee_maker_connection;
 pub mod coffee_maker_server;
 pub mod connection_server;

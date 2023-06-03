@@ -1,21 +1,31 @@
 use std::sync::Arc;
 
+use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Condvar, Mutex};
 
+use crate::channel_messages::{PointsRequest, TakePoints};
 use crate::errors::ServerError;
 use crate::orders_queue::OrdersQueue;
 
 pub struct OrdersManager {
     orders: Arc<Mutex<OrdersQueue>>,
     orders_cond: Arc<Condvar>,
-    // channel para recibir las respuestas y responder al request points
+    request_points_channel: Sender<PointsRequest>,
+    result_take_points_channel: Receiver<TakePoints>,
 }
 
 impl OrdersManager {
-    pub fn new(orders: Arc<Mutex<OrdersQueue>>, orders_cond: Arc<Condvar>) -> OrdersManager {
+    pub fn new(
+        orders: Arc<Mutex<OrdersQueue>>,
+        orders_cond: Arc<Condvar>,
+        request_points_channel: Sender<PointsRequest>,
+        result_take_points_channel: Receiver<TakePoints>,
+    ) -> OrdersManager {
         OrdersManager {
             orders,
             orders_cond,
+            request_points_channel,
+            result_take_points_channel,
         }
     }
 
@@ -31,14 +41,27 @@ impl OrdersManager {
             }
 
             let request_points_orders = orders.get_and_clear_request_points_orders();
-            let total_request_orders = request_points_orders.len();
+            let mut total_request_orders = 0;
             for order in request_points_orders {
                 // TODO ver si alcanzan los puntos (si hay 2 o mas sobre la misma cuenta ir acumulando en el gestor de puntos?)
-                // TODO responder si alcanza o no
+                // if alcanzan los puntos {
+                total_request_orders += 1;
+                //}
+                let result = self.request_points_channel.send(PointsRequest {
+                    coffee_maker_id: 0, /* sacar el id */
+                    account_id: order.account_id,
+                });
+                if result.is_err() {
+                    return Err(ServerError::ChannelError);
+                }
             }
 
             for _ in 0..total_request_orders {
-                // TODO recibir el resultado de la orden de resta
+                let result = self.result_take_points_channel.recv();
+                if result.is_err() {
+                    return Err(ServerError::ChannelError);
+                }
+                let result = result.unwrap();
                 // TODO restar los puntos locales si corresponde
                 // TODO broadcast de la resta si corresponde
             }
