@@ -2,4 +2,6 @@
 pub enum ServerError {
     ListenerError,
     AcceptError,
+    ArgsMissing,
+    ArgsFormat,
 }

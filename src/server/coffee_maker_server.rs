@@ -17,9 +17,15 @@ pub struct CoffeeMakerServer {
     coffee_machines_connections: Vec<JoinHandle<Result<(), ConnectionError>>>,
 }
 
+fn id_to_coffee_port(id: usize) -> String {
+    let port = id + 20000;
+    port.to_string()
+}
+
 impl CoffeeMakerServer {
-    pub fn new() -> Result<CoffeeMakerServer, ServerError> {
-        let listener: Box<dyn ConnectionServer> = Box::new(TcpConnectionServer::new()?);
+    pub fn new(id: usize) -> Result<CoffeeMakerServer, ServerError> {
+        let listener: Box<dyn ConnectionServer> =
+            Box::new(TcpConnectionServer::new(&id_to_coffee_port(id))?);
         Ok(CoffeeMakerServer {
             listener,
             coffee_machines_connections: Vec::new(),
