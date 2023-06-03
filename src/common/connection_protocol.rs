@@ -20,16 +20,22 @@ pub struct TcpConnection {
 }
 
 impl TcpConnection {
-    pub fn new_client_connection() -> Result<TcpConnection, ConnectionError> {
+    pub fn new_client_connection(server_addr: String) -> Result<TcpConnection, ConnectionError> {
         // TODO revisar
-        let result = task::block_on(TcpStream::connect("127.0.0.1:8888"));
+        let result = task::block_on(TcpStream::connect(&server_addr));
         match result {
             Err(e) => {
-                error!("[TCP CONNECTION] Error connecting to server, {}", e);
+                error!(
+                    "[TCP CONNECTION] Error connecting to server {}, {}",
+                    server_addr, e
+                );
                 Err(ConnectionError::ConnectionLost)
             }
             Ok(stream) => {
-                info!("[TCP CONNECTION] Established connection to local server");
+                info!(
+                    "[TCP CONNECTION] Established connection to local server {}",
+                    server_addr
+                );
                 Ok(TcpConnection {
                     writer: stream.clone(),
                     reader: BufReader::new(stream),

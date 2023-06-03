@@ -46,10 +46,10 @@ pub struct CoffeeMaker {
 impl CoffeeMaker {
     pub fn new(
         reader_addr: Addr<OrdersReader>,
-        _server_port: usize,
+        server_addr: String,
         order_randomizer: Box<dyn Randomizer>,
     ) -> Result<CoffeeMaker, ConnectionError> {
-        let connection = LocalServer::new()?;
+        let connection = LocalServer::new(server_addr)?;
         Ok(CoffeeMaker {
             reader_addr,
             server_conn: Arc::new(Mutex::new(Box::new(connection))),

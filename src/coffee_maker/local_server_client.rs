@@ -29,8 +29,8 @@ pub struct LocalServer {
 }
 
 impl LocalServer {
-    pub fn new() -> Result<LocalServer, ConnectionError> {
-        let protocol = TcpConnection::new_client_connection()?;
+    pub fn new(server_addr: String) -> Result<LocalServer, ConnectionError> {
+        let protocol = TcpConnection::new_client_connection(server_addr)?;
         Ok(LocalServer {
             connection: Arc::new(Mutex::new(Box::new(protocol))),
         })
