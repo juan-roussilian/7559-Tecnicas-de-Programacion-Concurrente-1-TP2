@@ -5,6 +5,7 @@ use lib::local_connection_messages::{CoffeeMakerRequest, MessageType};
 pub struct OrdersQueue {
     adding_orders: Vec<CoffeeMakerRequest>,
     request_points_orders: Vec<CoffeeMakerRequest>,
+    have_token: bool,
 }
 
 impl OrdersQueue {
@@ -12,6 +13,7 @@ impl OrdersQueue {
         OrdersQueue {
             adding_orders: Vec::new(),
             request_points_orders: Vec::new(),
+            have_token: false,
         }
     }
 
@@ -50,5 +52,17 @@ impl OrdersQueue {
         }
         self.request_points_orders.clear();
         orders
+    }
+
+    pub fn have_token(&self) -> bool {
+        self.have_token
+    }
+
+    pub fn received_token(&mut self) {
+        self.have_token = true;
+    }
+
+    pub fn clear_token(&mut self) {
+        self.have_token = false;
     }
 }

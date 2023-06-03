@@ -36,9 +36,9 @@ impl OrdersManager {
 
     pub fn handle_orders(&mut self) -> Result<(), ServerError> {
         loop {
-            let mut orders = self
-                .orders_cond
-                .wait_while(self.orders.lock()?, |orders| orders.is_empty())?;
+            let mut orders = self.orders_cond.wait_while(self.orders.lock()?, |orders| {
+                orders.is_empty() && !orders.have_token()
+            })?;
             let adding_orders = orders.get_and_clear_adding_orders();
             for order in adding_orders {
                 // TODO agregar puntos a la db local
