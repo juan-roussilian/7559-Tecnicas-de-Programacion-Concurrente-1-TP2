@@ -1,10 +1,11 @@
-use std::sync::Arc;
-
-use async_std::{
-    sync::Mutex,
-    task::{self, JoinHandle},
-};
+use async_std::{task};
 use lib::common_errors::ConnectionError;
+use lib::local_connection_messages::{CoffeeMakerRequest, CoffeeMakerResponse};
+use log::error;
+use std::sync::mpsc::Sender;
+use std::sync::{mpsc};
+use std::thread;
+use std::thread::JoinHandle;
 
 use crate::{
     coffee_maker_connection::receive_messages_from_coffee_maker,
@@ -32,12 +33,33 @@ impl CoffeeMakerServer {
         })
     }
 
-    pub async fn listen(&mut self) -> Result<(), ServerError> {
+    pub fn listen(
+        &mut self,
+        coffee_request_sender: Sender<(CoffeeMakerRequest, usize)>,
+        new_response_senders: Sender<(Sender<CoffeeMakerResponse>, usize)>,
+    ) -> Result<(), ServerError> {
+        let mut curr_machine_id = 0;
         loop {
-            let new_conn_result = self.listener.listen().await?;
-            let connection = Arc::new(Mutex::new(new_conn_result));
-            let future_handle = task::spawn(receive_messages_from_coffee_maker(connection));
-            self.coffee_machines_connections.push(future_handle);
+            let (curr_machine_response_sender, curr_machine_response_receiver) = mpsc::channel();
+            if let Err(e) =
+                new_response_senders.send((curr_machine_response_sender, curr_machine_id))
+            {
+                error!("trying to send on a channel without receiver");
+                return Err(ServerError::ListenerError);
+            }
+
+            let curr_machine_request_sender = coffee_request_sender.clone();
+            let mut new_conn_result = task::block_on(self.listener.listen())?;
+            let handle = thread::spawn(move || {
+                receive_messages_from_coffee_maker(
+                    &mut new_conn_result,
+                    curr_machine_id,
+                    curr_machine_request_sender,
+                    curr_machine_response_receiver,
+                )
+            });
+            self.coffee_machines_connections.push(handle);
+            curr_machine_id += 1;
         }
     }
 }

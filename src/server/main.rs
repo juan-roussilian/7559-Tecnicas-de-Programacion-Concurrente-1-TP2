@@ -58,7 +58,7 @@ fn main() {
             return;
         }
         let mut coffee_server = coffee_server.unwrap();
-        coffee_server.listen().await;
+        coffee_server.listen();
     });
 
     system.run().unwrap();
