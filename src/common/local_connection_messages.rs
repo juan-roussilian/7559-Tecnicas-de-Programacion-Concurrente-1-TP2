@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::common_errors::ConnectionError;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone, Copy)]
 pub struct CoffeeMakerRequest {
     pub message_type: MessageType,
     pub account_id: usize,
@@ -21,7 +21,7 @@ pub enum ResponseStatus {
     Err(ConnectionError),
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone, Copy)]
 pub enum MessageType {
     AddPoints,
     RequestPoints,
