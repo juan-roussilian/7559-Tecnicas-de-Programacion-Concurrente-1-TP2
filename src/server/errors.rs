@@ -6,6 +6,8 @@ pub enum ServerError {
     ArgsFormat,
     LockError,
     ChannelError,
+    AccountNotFound,
+    NotEnoughPointsInAccount,
 }
 
 impl<T> From<std::sync::PoisonError<T>> for ServerError {
