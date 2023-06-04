@@ -1,9 +1,9 @@
 use async_std::task;
 use lib::common_errors::ConnectionError;
 use lib::local_connection_messages::{CoffeeMakerRequest, CoffeeMakerResponse};
-use log::error;
-use std::sync::mpsc;
+use std::collections::HashMap;
 use std::sync::mpsc::Sender;
+use std::sync::{mpsc, Arc, Mutex};
 use std::thread;
 use std::thread::JoinHandle;
 
@@ -36,17 +36,15 @@ impl CoffeeMakerServer {
     pub fn listen(
         &mut self,
         coffee_request_sender: Sender<(CoffeeMakerRequest, usize)>,
-        new_response_senders: Sender<(Sender<CoffeeMakerResponse>, usize)>,
+        machine_response_senders: Arc<Mutex<HashMap<usize, Sender<CoffeeMakerResponse>>>>,
     ) -> Result<(), ServerError> {
         let mut curr_machine_id = 0;
         loop {
             let (curr_machine_response_sender, curr_machine_response_receiver) = mpsc::channel();
-            if let Err(e) =
-                new_response_senders.send((curr_machine_response_sender, curr_machine_id))
-            {
-                error!("trying to send on a channel without receiver");
-                return Err(ServerError::ListenerError);
-            }
+
+            let mut machine_senders_guard = machine_response_senders.clone().lock().unwrap();
+            machine_senders_guard.insert(curr_machine_id, curr_machine_response_sender);
+            drop(machine_senders_guard);
 
             let curr_machine_request_sender = coffee_request_sender.clone();
             let mut new_conn_result = task::block_on(self.listener.listen())?;
