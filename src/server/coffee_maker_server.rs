@@ -42,9 +42,10 @@ impl CoffeeMakerServer {
         loop {
             let (curr_machine_response_sender, curr_machine_response_receiver) = mpsc::channel();
 
-            let mut machine_senders_guard = machine_response_senders.clone().lock().unwrap();
-            machine_senders_guard.insert(curr_machine_id, curr_machine_response_sender);
-            drop(machine_senders_guard);
+            {
+                let mut machine_senders_guard = machine_response_senders.clone().lock().unwrap();
+                machine_senders_guard.insert(curr_machine_id, curr_machine_response_sender);
+            }
 
             let curr_machine_request_sender = coffee_request_sender.clone();
             let mut new_conn_result = task::block_on(self.listener.listen())?;

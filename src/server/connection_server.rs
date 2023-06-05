@@ -19,10 +19,10 @@ impl TcpConnectionServer {
     pub fn new(port: &str) -> Result<TcpConnectionServer, ServerError> {
         let listener = task::block_on(TcpListener::bind("127.0.0.1:".to_owned() + port));
         if let Err(e) = listener {
-            error!("[COFFEE MAKER SERVER] Error binding to port, {}", e);
+            error!("[SERVER] Error binding to port, {}", e);
             return Err(ServerError::ListenerError);
         }
-        info!("[COFFEE MAKER SERVER] Bind to port successful");
+        info!("[SERVER] Bind to port successful");
         let listener = listener.unwrap();
         Ok(TcpConnectionServer { listener })
     }
@@ -34,10 +34,7 @@ impl ConnectionServer for TcpConnectionServer {
         let result = self.listener.accept().await;
         match result {
             Ok((tcp_stream, addr)) => {
-                info!(
-                    "[COFFEE MAKER SERVER] Accepted connection from {}",
-                    addr.ip()
-                );
+                info!("[SERVER] Accepted connection from {}", addr.ip());
                 let conn = TcpConnection::new_server_connection(tcp_stream);
                 Ok(Box::new(conn))
             }

@@ -1,4 +1,5 @@
 use crate::orders_queue::OrdersQueue;
+use lib::common_errors::ConnectionError;
 use lib::local_connection_messages::{
     CoffeeMakerRequest, CoffeeMakerResponse, MessageType, ResponseStatus,
 };
@@ -8,6 +9,7 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 
 pub struct CoffeeMessageDispatcher {
+    is_connected: Arc<Mutex<bool>>,
     orders: Arc<Mutex<OrdersQueue>>,
     machine_request_receiver: Receiver<(CoffeeMakerRequest, usize)>,
     machine_response_senders: Arc<Mutex<HashMap<usize, Sender<CoffeeMakerResponse>>>>,
@@ -15,10 +17,12 @@ pub struct CoffeeMessageDispatcher {
 
 impl CoffeeMessageDispatcher {
     pub fn new(
+        is_connected: Arc<Mutex<bool>>,
         orders: Arc<Mutex<OrdersQueue>>,
         machine_request_receiver: Receiver<(CoffeeMakerRequest, usize)>,
     ) -> Self {
         Self {
+            is_connected,
             orders,
             machine_request_receiver,
             machine_response_senders: Arc::new(Mutex::new(HashMap::new())),
@@ -43,9 +47,10 @@ impl CoffeeMessageDispatcher {
 
             match new_request.0.message_type {
                 MessageType::AddPoints => {
-                    let mut orders = self.orders.lock().unwrap();
-                    orders.add(new_request.0);
-                    drop(orders);
+                    {
+                        let mut orders = self.orders.lock().unwrap();
+                        orders.add(new_request.0);
+                    }
 
                     orders_response_sender
                         .send((
@@ -59,9 +64,22 @@ impl CoffeeMessageDispatcher {
                 }
 
                 MessageType::RequestPoints => {
+                    let is_now_connected = *self.is_connected.lock().unwrap();
+                    if !is_now_connected {
+                        orders_response_sender
+                            .send((
+                                CoffeeMakerResponse {
+                                    message_type: new_request.0.message_type,
+                                    status: ResponseStatus::Err(ConnectionError::ConnectionLost),
+                                },
+                                new_request.1,
+                            ))
+                            .unwrap();
+                    }
+
                     let mut orders = self.orders.lock().unwrap();
-                    orders.add(new_request.0);
-                    // OrdersManager will be the one that sends the CoffeeMakerResponse through orders_request_sender channel in this case
+                    orders.add(new_request.0); // TODO agregar de que cafetera
+                                               // OrdersManager will be the one that sends the CoffeeMakerResponse through orders_request_sender channel in this case
                 }
 
                 _ => {
@@ -78,9 +96,6 @@ impl CoffeeMessageDispatcher {
                 }
             }
         }
-
-        // how do we reach this?
-        handle.join().unwrap();
     }
 
     fn send_coffee_responses(
@@ -90,7 +105,6 @@ impl CoffeeMessageDispatcher {
         loop {
             let (response, machine_id) = orders_response_receiver.recv().unwrap();
             let mut machine_senders_guard = machine_response_senders.lock().unwrap();
-
             match machine_senders_guard.get(&machine_id) {
                 Some(sender) => {
                     sender.send(response).unwrap();
@@ -100,7 +114,6 @@ impl CoffeeMessageDispatcher {
                     // Maybe we should check if the key exists way before this, when we get a request.
                 }
             }
-            drop(machine_senders_guard)
         }
     }
 }

@@ -8,6 +8,7 @@ pub struct AccountChange {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum ServerMessage {
+    // TODO
     AddPoints(AccountChange),
     TakePoints(AccountChange),
 }
