@@ -7,6 +7,7 @@ use std::sync::{ mpsc, Arc, Mutex };
 use std::thread;
 use std::thread::JoinHandle;
 
+use crate::address_resolver::id_to_coffee_port;
 use crate::{
     coffee_maker_connection::receive_messages_from_coffee_maker,
     connection_server::{ ConnectionServer, TcpConnectionServer },
@@ -16,11 +17,6 @@ use crate::{
 pub struct CoffeeMakerServer {
     listener: Box<dyn ConnectionServer>,
     coffee_machines_connections: Vec<JoinHandle<Result<(), ConnectionError>>>,
-}
-
-fn id_to_coffee_port(id: usize) -> String {
-    let port = id + 20000;
-    port.to_string()
 }
 
 impl CoffeeMakerServer {
