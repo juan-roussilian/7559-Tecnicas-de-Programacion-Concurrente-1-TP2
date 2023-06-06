@@ -19,6 +19,9 @@ pub mod previous_connection;
 pub mod server_args;
 pub mod server_listener;
 pub mod server_messages;
+pub mod accounts_manager;
+pub mod account;
+pub mod memory_accounts_manager;
 
 fn get_args() -> Result<ServerArgs, ServerError> {
     let args: Vec<String> = env::args().collect();
