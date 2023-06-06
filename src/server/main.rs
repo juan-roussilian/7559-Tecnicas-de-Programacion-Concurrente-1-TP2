@@ -18,8 +18,13 @@ pub mod previous_connection;
 pub mod server_args;
 pub mod local_server;
 pub mod server_messages;
+
 pub mod next_connection;
 pub mod connection_status;
+
+pub mod accounts_manager;
+pub mod account;
+pub mod memory_accounts_manager;
 
 fn get_args() -> Result<ServerArgs, ServerError> {
     let args: Vec<String> = env::args().collect();
