@@ -25,6 +25,7 @@ pub mod next_connection;
 pub mod account;
 pub mod accounts_manager;
 pub mod address_resolver;
+pub mod constants;
 pub mod memory_accounts_manager;
 
 fn get_args() -> Result<ServerArgs, ServerError> {

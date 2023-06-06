@@ -3,10 +3,8 @@ use std::{
     time::Duration,
 };
 
-use lib::{
-    common_errors::ConnectionError,
-    connection_protocol::{ConnectionProtocol, TcpConnection},
-};
+use async_std::task;
+use lib::connection_protocol::{ConnectionProtocol, TcpConnection};
 use log::error;
 
 use crate::{
@@ -108,17 +106,31 @@ impl NextConnection {
     }
 
     pub fn handle_message_to_next(&mut self) -> Result<(), ServerError> {
-        self.connect_to_next();
+        self.try_to_connect_wait_if_offline();
         if self.id == 0 {
             // send initial token to connection
         }
         loop {
+            if !self.connection_status.lock()?.is_online() {
+                self.try_to_connect_wait_if_offline();
+                // todo send new connection message to next server
+            }
             let result = self.next_conn_receiver.recv();
             if result.is_err() {
                 error!("[TO NEXT CONNECTION] Channel error, stopping...");
                 return Err(ServerError::ChannelError);
             }
             let message = result.unwrap();
+            // TODO si el message es de nueva conexion, revisar de quien es, si el nuevo debe de ser next agregarle lo de diff,
+            // cerrar conexion vieja y reconectar
+
+            if let Some(connection) = self.connection.as_mut() {
+                // TODO handle message conversion
+                if task::block_on(connection.send(&[])).is_err() {
+                    self.connection = None;
+                    self.connection_status.lock()?.set_next_offline();
+                }
+            }
         }
     }
 }
