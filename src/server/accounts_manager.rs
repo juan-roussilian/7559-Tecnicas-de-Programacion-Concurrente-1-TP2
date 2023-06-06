@@ -1,7 +1,10 @@
+use crate::errors::ServerError;
+
 pub trait AccountsManager{
-    fn add_points(account_id: u32, points: u32);
-    fn request_points(account_id: u32, points: u32)-> Result<(), ServerError>;
-    fn cancel_requested_points(account_id: u32)-> Result<(), ServerError>;
-    fn substract_points(account_id: u32, points: u32)-> Result<(), ServerError>;
-    fn update_account(account_id:u32, points:u32) -> Result<(), ServerError>;
+    fn new(&self)-> Self;
+    fn add_points(&mut self, account_id: usize, points: usize);
+    fn request_points(&self, account_id: usize, points: usize)-> Result<(), ServerError>;
+    fn cancel_requested_points(&self, account_id: usize)-> Result<(), ServerError>;
+    fn substract_points(&self, account_id: usize, points: usize)-> Result<(), ServerError>;
+    fn update_account(&self, account_id:usize, points:usize) -> Result<(), ServerError>;
 }
