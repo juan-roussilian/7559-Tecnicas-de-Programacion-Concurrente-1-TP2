@@ -1,6 +1,9 @@
+use std::sync::mpsc::Sender;
+
 use async_std::task;
 use lib::{
-    common_errors::ConnectionError, connection_protocol::ConnectionProtocol,
+    common_errors::ConnectionError,
+    connection_protocol::ConnectionProtocol,
     serializer::deserialize,
 };
 
@@ -8,11 +11,17 @@ use crate::server_messages::ServerMessage;
 
 pub struct PrevConnection {
     connection: Box<dyn ConnectionProtocol + Send>,
+    to_next_sender: Sender<ServerMessage>,
+    to_orders_manager_sender: Sender<ServerMessage>,
 }
 
 impl PrevConnection {
-    pub fn new(connection: Box<dyn ConnectionProtocol + Send>) -> PrevConnection {
-        PrevConnection { connection }
+    pub fn new(
+        connection: Box<dyn ConnectionProtocol + Send>,
+        to_next_sender: Sender<ServerMessage>,
+        to_orders_manager_sender: Sender<ServerMessage>
+    ) -> PrevConnection {
+        PrevConnection { connection, to_next_sender, to_orders_manager_sender }
     }
 
     pub fn listen(&mut self) -> Result<(), ConnectionError> {
@@ -22,7 +31,7 @@ impl PrevConnection {
                 // TODO handle lost connection
                 return Err(ConnectionError::ConnectionLost);
             }
-            let Ok(mut encoded) = encoded;
+            let mut encoded = encoded.unwrap();
             let message: ServerMessage = deserialize(&mut encoded)?;
 
             // TODO handle message

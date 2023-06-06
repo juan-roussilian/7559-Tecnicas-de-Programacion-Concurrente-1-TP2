@@ -7,7 +7,6 @@ use lib::logger::set_logger_config;
 use log::error;
 use server_args::ServerArgs;
 
-pub mod broadcaster;
 pub mod coffee_maker_connection;
 pub mod coffee_maker_server;
 pub mod coffee_message_dispatcher;
@@ -17,8 +16,10 @@ pub mod orders_manager;
 pub mod orders_queue;
 pub mod previous_connection;
 pub mod server_args;
-pub mod server_listener;
+pub mod local_server;
 pub mod server_messages;
+pub mod next_connection;
+pub mod connection_status;
 
 fn get_args() -> Result<ServerArgs, ServerError> {
     let args: Vec<String> = env::args().collect();
@@ -27,10 +28,11 @@ fn get_args() -> Result<ServerArgs, ServerError> {
         let parsed_peer_count: Result<usize, _> = args[2].clone().trim().parse();
 
         match (parsed_id, parsed_peer_count) {
-            (Ok(id), Ok(peer_server_count)) => Ok(ServerArgs {
-                id,
-                peer_server_count,
-            }),
+            (Ok(id), Ok(peer_server_count)) =>
+                Ok(ServerArgs {
+                    id,
+                    peer_server_count,
+                }),
             (_, _) => Err(ServerError::ArgsFormat),
         }
     } else {
@@ -63,7 +65,7 @@ fn main() {
             return;
         }
         let mut coffee_server = coffee_server.unwrap();
-        coffee_server.listen();
+        //coffee_server.listen();
     });
 
     system.run().unwrap();

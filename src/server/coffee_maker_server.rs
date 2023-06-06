@@ -1,15 +1,15 @@
 use async_std::task;
 use lib::common_errors::ConnectionError;
-use lib::local_connection_messages::{CoffeeMakerRequest, CoffeeMakerResponse};
+use lib::local_connection_messages::{ CoffeeMakerRequest, CoffeeMakerResponse };
 use std::collections::HashMap;
 use std::sync::mpsc::Sender;
-use std::sync::{mpsc, Arc, Mutex};
+use std::sync::{ mpsc, Arc, Mutex };
 use std::thread;
 use std::thread::JoinHandle;
 
 use crate::{
     coffee_maker_connection::receive_messages_from_coffee_maker,
-    connection_server::{ConnectionServer, TcpConnectionServer},
+    connection_server::{ ConnectionServer, TcpConnectionServer },
     errors::ServerError,
 };
 
@@ -25,8 +25,9 @@ fn id_to_coffee_port(id: usize) -> String {
 
 impl CoffeeMakerServer {
     pub fn new(id: usize) -> Result<CoffeeMakerServer, ServerError> {
-        let listener: Box<dyn ConnectionServer> =
-            Box::new(TcpConnectionServer::new(&id_to_coffee_port(id))?);
+        let listener: Box<dyn ConnectionServer> = Box::new(
+            TcpConnectionServer::new(&id_to_coffee_port(id))?
+        );
         Ok(CoffeeMakerServer {
             listener,
             coffee_machines_connections: Vec::new(),
@@ -36,14 +37,14 @@ impl CoffeeMakerServer {
     pub fn listen(
         &mut self,
         coffee_request_sender: Sender<(CoffeeMakerRequest, usize)>,
-        machine_response_senders: Arc<Mutex<HashMap<usize, Sender<CoffeeMakerResponse>>>>,
+        machine_response_senders: Arc<Mutex<HashMap<usize, Sender<CoffeeMakerResponse>>>>
     ) -> Result<(), ServerError> {
         let mut curr_machine_id = 0;
         loop {
             let (curr_machine_response_sender, curr_machine_response_receiver) = mpsc::channel();
 
             {
-                let mut machine_senders_guard = machine_response_senders.clone().lock().unwrap();
+                let mut machine_senders_guard = machine_response_senders.lock().unwrap();
                 machine_senders_guard.insert(curr_machine_id, curr_machine_response_sender);
             }
 
@@ -54,7 +55,7 @@ impl CoffeeMakerServer {
                     &mut new_conn_result,
                     curr_machine_id,
                     curr_machine_request_sender,
-                    curr_machine_response_receiver,
+                    curr_machine_response_receiver
                 )
             });
             self.coffee_machines_connections.push(handle);

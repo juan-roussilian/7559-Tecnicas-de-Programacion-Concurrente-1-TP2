@@ -1,15 +1,19 @@
+use crate::connection_status::ConnectionStatus;
 use crate::orders_queue::OrdersQueue;
 use lib::common_errors::ConnectionError;
 use lib::local_connection_messages::{
-    CoffeeMakerRequest, CoffeeMakerResponse, MessageType, ResponseStatus,
+    CoffeeMakerRequest,
+    CoffeeMakerResponse,
+    MessageType,
+    ResponseStatus,
 };
 use std::collections::HashMap;
-use std::sync::mpsc::{Receiver, Sender};
-use std::sync::{Arc, Mutex};
+use std::sync::mpsc::{ Receiver, Sender };
+use std::sync::{ Arc, Mutex };
 use std::thread;
 
 pub struct CoffeeMessageDispatcher {
-    is_connected: Arc<Mutex<bool>>,
+    is_connected: Arc<Mutex<ConnectionStatus>>,
     orders: Arc<Mutex<OrdersQueue>>,
     machine_request_receiver: Receiver<(CoffeeMakerRequest, usize)>,
     machine_response_senders: Arc<Mutex<HashMap<usize, Sender<CoffeeMakerResponse>>>>,
@@ -17,9 +21,9 @@ pub struct CoffeeMessageDispatcher {
 
 impl CoffeeMessageDispatcher {
     pub fn new(
-        is_connected: Arc<Mutex<bool>>,
+        is_connected: Arc<Mutex<ConnectionStatus>>,
         orders: Arc<Mutex<OrdersQueue>>,
-        machine_request_receiver: Receiver<(CoffeeMakerRequest, usize)>,
+        machine_request_receiver: Receiver<(CoffeeMakerRequest, usize)>
     ) -> Self {
         Self {
             is_connected,
@@ -33,12 +37,12 @@ impl CoffeeMessageDispatcher {
         &mut self,
         orders_request_sender: Sender<CoffeeMakerRequest>,
         orders_response_sender: Sender<(CoffeeMakerResponse, usize)>,
-        orders_response_receiver: Receiver<(CoffeeMakerResponse, usize)>,
+        orders_response_receiver: Receiver<(CoffeeMakerResponse, usize)>
     ) {
         let handle = thread::spawn(move || {
             Self::send_coffee_responses(
                 self.machine_response_senders.clone(),
-                orders_response_receiver,
+                orders_response_receiver
             );
         });
 
@@ -64,7 +68,7 @@ impl CoffeeMessageDispatcher {
                 }
 
                 MessageType::RequestPoints => {
-                    let is_now_connected = *self.is_connected.lock().unwrap();
+                    let is_now_connected = self.is_connected.lock().unwrap().is_online();
                     if !is_now_connected {
                         orders_response_sender
                             .send((
@@ -79,7 +83,7 @@ impl CoffeeMessageDispatcher {
 
                     let mut orders = self.orders.lock().unwrap();
                     orders.add(new_request.0); // TODO agregar de que cafetera
-                                               // OrdersManager will be the one that sends the CoffeeMakerResponse through orders_request_sender channel in this case
+                    // OrdersManager will be the one that sends the CoffeeMakerResponse through orders_request_sender channel in this case
                 }
 
                 _ => {
@@ -100,7 +104,7 @@ impl CoffeeMessageDispatcher {
 
     fn send_coffee_responses(
         machine_response_senders: Arc<Mutex<HashMap<usize, Sender<CoffeeMakerResponse>>>>,
-        orders_response_receiver: Receiver<(CoffeeMakerResponse, usize)>,
+        orders_response_receiver: Receiver<(CoffeeMakerResponse, usize)>
     ) {
         loop {
             let (response, machine_id) = orders_response_receiver.recv().unwrap();
