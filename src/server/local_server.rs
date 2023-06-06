@@ -1,18 +1,19 @@
-use std::{ thread::{ self, JoinHandle }, sync::{ mpsc::{ self, Sender }, Arc, Mutex } };
+use std::{ sync::{ mpsc::{ self, Sender }, Arc, Mutex }, thread::{ self, JoinHandle } };
 
 use async_std::task;
 use lib::common_errors::ConnectionError;
 
 use crate::{
+    address_resolver::id_to_server_port,
+    coffee_message_dispatcher::CoffeeMessageDispatcher,
     connection_server::{ ConnectionServer, TcpConnectionServer },
-    errors::ServerError,
-    previous_connection::PrevConnection,
-    server_messages::ServerMessage,
     connection_status::ConnectionStatus,
+    errors::ServerError,
     next_connection::NextConnection,
     orders_manager::OrdersManager,
     orders_queue::OrdersQueue,
-    coffee_message_dispatcher::CoffeeMessageDispatcher,
+    previous_connection::PrevConnection,
+    server_messages::ServerMessage,
 };
 
 pub struct LocalServer {
@@ -26,13 +27,8 @@ pub struct LocalServer {
     coffee_message_dispatcher: Arc<CoffeeMessageDispatcher>,
 }
 
-fn id_to_server_port(id: usize) -> String {
-    let port = id + 10000;
-    port.to_string()
-}
-
 impl LocalServer {
-    pub fn new(id: usize) -> Result<LocalServer, ServerError> {
+    pub fn new(id: usize, peer_count: usize) -> Result<LocalServer, ServerError> {
         let listener: Box<dyn ConnectionServer> = Box::new(
             TcpConnectionServer::new(&id_to_server_port(id))?
         );
@@ -44,7 +40,9 @@ impl LocalServer {
         let (orders_from_coffee_sender, orders_from_coffee_receiver) = mpsc::channel();
 
         let connection_status = Arc::new(Mutex::new(ConnectionStatus::new()));
-        let next_connection = Arc::new(NextConnection::new(id, next_conn_receiver));
+        let next_connection = Arc::new(
+            NextConnection::new(id, peer_count, next_conn_receiver, connection_status.clone())
+        );
 
         let orders = Arc::new(Mutex::new(OrdersQueue::new()));
 

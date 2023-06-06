@@ -12,18 +12,19 @@ pub mod coffee_maker_server;
 pub mod coffee_message_dispatcher;
 pub mod connection_server;
 pub mod errors;
+pub mod local_server;
 pub mod orders_manager;
 pub mod orders_queue;
 pub mod previous_connection;
 pub mod server_args;
-pub mod local_server;
 pub mod server_messages;
 
-pub mod next_connection;
 pub mod connection_status;
+pub mod next_connection;
 
-pub mod accounts_manager;
 pub mod account;
+pub mod accounts_manager;
+pub mod address_resolver;
 pub mod memory_accounts_manager;
 
 fn get_args() -> Result<ServerArgs, ServerError> {

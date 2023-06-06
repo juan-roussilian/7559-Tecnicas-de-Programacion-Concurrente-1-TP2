@@ -28,4 +28,16 @@ impl ConnectionStatus {
     pub fn set_prev_online(&mut self) {
         self.prev = Status::Connected;
     }
+
+    pub fn set_next_online(&mut self) {
+        self.next = Status::Connected;
+    }
+
+    pub fn set_prev_offline(&mut self) {
+        self.prev = Status::Disconnected;
+    }
+
+    pub fn set_next_offline(&mut self) {
+        self.next = Status::Disconnected;
+    }
 }

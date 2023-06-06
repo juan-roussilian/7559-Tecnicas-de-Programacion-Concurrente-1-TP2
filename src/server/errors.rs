@@ -8,6 +8,7 @@ pub enum ServerError {
     ChannelError,
     AccountNotFound,
     NotEnoughPointsInAccount,
+    ConnectionLost,
 }
 
 impl<T> From<std::sync::PoisonError<T>> for ServerError {
