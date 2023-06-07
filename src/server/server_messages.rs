@@ -1,8 +1,10 @@
-use std::{ time::{ Instant, Duration }, collections::{ HashMap, HashSet } };
+use std::{
+    collections::{HashMap, HashSet},
+    time::Duration,
+};
 
-use chrono::{ DateTime, Local };
 use lib::local_connection_messages::CoffeeMakerRequest;
-use serde::{ Deserialize, Serialize };
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ServerMessage {
@@ -16,17 +18,16 @@ pub enum ServerMessageType {
     NewConnection(Diff),
     CloseConnection,
     Token(TokenData),
+    LostConnection(ServerId),
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct TokenData {
-    changes: HashMap<usize, Vec<CoffeeMakerRequest>>,
-}
+type ServerId = usize;
+pub type TokenData = HashMap<usize, Vec<CoffeeMakerRequest>>;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Diff {
-    last_update: Duration,
-    changes: Vec<UpdatedAccount>,
+    pub last_update: Duration,
+    pub changes: Vec<UpdatedAccount>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

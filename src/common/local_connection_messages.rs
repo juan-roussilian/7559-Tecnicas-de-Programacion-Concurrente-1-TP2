@@ -21,7 +21,7 @@ pub enum ResponseStatus {
     Err(ConnectionError),
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, Copy)]
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq)]
 pub enum MessageType {
     AddPoints,
     RequestPoints,

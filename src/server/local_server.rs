@@ -1,12 +1,19 @@
-use std::{ sync::{ mpsc::{ self, Sender }, Arc, Mutex }, thread::{ self, JoinHandle } };
+use std::{
+    sync::{
+        mpsc::{self, Sender},
+        Arc, Mutex,
+    },
+    thread::{self, JoinHandle},
+};
 
 use async_std::task;
 use lib::common_errors::ConnectionError;
+use log::error;
 
 use crate::{
     address_resolver::id_to_server_port,
     coffee_message_dispatcher::CoffeeMessageDispatcher,
-    connection_server::{ ConnectionServer, TcpConnectionServer },
+    connection_server::{ConnectionServer, TcpConnectionServer},
     connection_status::ConnectionStatus,
     errors::ServerError,
     next_connection::NextConnection,
@@ -29,9 +36,8 @@ pub struct LocalServer {
 
 impl LocalServer {
     pub fn new(id: usize, peer_count: usize) -> Result<LocalServer, ServerError> {
-        let listener: Box<dyn ConnectionServer> = Box::new(
-            TcpConnectionServer::new(&id_to_server_port(id))?
-        );
+        let listener: Box<dyn ConnectionServer> =
+            Box::new(TcpConnectionServer::new(&id_to_server_port(id))?);
         let (to_next_conn_sender, next_conn_receiver) = mpsc::channel();
         let (to_orders_manager_sender, orders_manager_receiver) = mpsc::channel();
 
@@ -40,29 +46,28 @@ impl LocalServer {
         let (orders_from_coffee_sender, orders_from_coffee_receiver) = mpsc::channel();
 
         let connection_status = Arc::new(Mutex::new(ConnectionStatus::new()));
-        let next_connection = Arc::new(
-            NextConnection::new(id, peer_count, next_conn_receiver, connection_status.clone())
-        );
+        let next_connection = Arc::new(NextConnection::new(
+            id,
+            peer_count,
+            next_conn_receiver,
+            connection_status.clone(),
+        ));
 
         let orders = Arc::new(Mutex::new(OrdersQueue::new()));
 
-        let orders_manager = Arc::new(
-            OrdersManager::new(
-                orders.clone(),
-                orders_manager_receiver,
-                to_next_conn_sender.clone(),
-                request_points_result_sender,
-                result_points_receiver
-            )
-        );
+        let orders_manager = Arc::new(OrdersManager::new(
+            orders.clone(),
+            orders_manager_receiver,
+            to_next_conn_sender.clone(),
+            request_points_result_sender,
+            result_points_receiver,
+        ));
 
-        let coffee_message_dispatcher = Arc::new(
-            CoffeeMessageDispatcher::new(
-                connection_status.clone(),
-                orders,
-                orders_from_coffee_receiver
-            )
-        );
+        let coffee_message_dispatcher = Arc::new(CoffeeMessageDispatcher::new(
+            connection_status.clone(),
+            orders,
+            orders_from_coffee_receiver,
+        ));
 
         Ok(LocalServer {
             listener,
@@ -85,13 +90,17 @@ impl LocalServer {
             let mut previous = PrevConnection::new(
                 new_connection,
                 to_next_channel,
-                to_orders_manager_channel
+                to_orders_manager_channel,
+                self.connection_status.clone(),
+                self.id,
             );
 
             let new_prev_handle = thread::spawn(move || previous.listen());
             if self.connection_status.lock()?.is_prev_online() {
                 if let Some(handle) = curr_prev_handle {
-                    handle.join();
+                    if handle.join().is_err() {
+                        error!("[LOCAL SERVER LISTENER] Error joining old previous connection");
+                    }
                 }
             }
 

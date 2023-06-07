@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use lib::local_connection_messages::{ CoffeeMakerRequest, MessageType };
+use lib::local_connection_messages::{CoffeeMakerRequest, MessageType};
 
 pub struct OrdersQueue {
     adding_orders: Vec<CoffeeMakerRequest>,

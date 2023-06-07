@@ -1,19 +1,15 @@
 use std::sync::Arc;
 
-use std::sync::mpsc::{ Receiver, Sender };
-use std::sync::{ Condvar, Mutex };
+use std::sync::mpsc::{Receiver, Sender};
+use std::sync::Mutex;
 
 use lib::local_connection_messages::{
-    CoffeeMakerRequest,
-    CoffeeMakerResponse,
-    MessageType,
-    ResponseStatus,
+    CoffeeMakerRequest, CoffeeMakerResponse, MessageType, ResponseStatus,
 };
-use log::error;
 
 use crate::errors::ServerError;
 use crate::orders_queue::OrdersQueue;
-use crate::server_messages::{ AccountChange, ServerMessage };
+use crate::server_messages::ServerMessage;
 
 pub struct OrdersManager {
     orders: Arc<Mutex<OrdersQueue>>,
@@ -29,7 +25,7 @@ impl OrdersManager {
         token_receiver: Receiver<ServerMessage>,
         to_next_sender: Sender<ServerMessage>,
         request_points_channel: Sender<(CoffeeMakerResponse, usize)>,
-        result_take_points_channel: Receiver<CoffeeMakerRequest>
+        result_take_points_channel: Receiver<CoffeeMakerRequest>,
     ) -> OrdersManager {
         OrdersManager {
             orders,
@@ -42,15 +38,10 @@ impl OrdersManager {
 
     pub fn handle_orders(&mut self) -> Result<(), ServerError> {
         loop {
-            let token = self.token_receiver.recv();
-            if token.is_err() {
-                error!("[ORDERS MANAGER] Token channel closed");
-                return Err(ServerError::ChannelError);
-            }
-            let token = token.unwrap();
+            let token = self.token_receiver.recv()?;
             let mut orders = self.orders.lock()?;
             if orders.is_empty() {
-                self.to_next_sender.send(token);
+                self.to_next_sender.send(token)?;
                 continue;
             }
             let adding_orders = orders.get_and_clear_adding_orders();
@@ -69,9 +60,9 @@ impl OrdersManager {
                 let result = self.request_points_channel.send((
                     CoffeeMakerResponse {
                         message_type: MessageType::RequestPoints,
-                        status: ResponseStatus::Ok /* obtener el status */,
+                        status: ResponseStatus::Ok, /* obtener el status */
                     },
-                    0 /* obtener el id */,
+                    0, /* obtener el id */
                 ));
                 if result.is_err() {
                     return Err(ServerError::ChannelError);
@@ -87,7 +78,7 @@ impl OrdersManager {
                 // TODO restar los puntos locales si corresponde
                 // Agregar al token
             }
-            self.to_next_sender.send(token);
+            self.to_next_sender.send(token)?;
         }
     }
 }
