@@ -28,8 +28,8 @@ pub fn receive_messages_from_coffee_maker(
         let response = response_receiver.recv();
 
         match response {
-            Err(e) => {
-                error!("trying to receive on a channel without sender");
+            Err(_) => {
+                error!("Trying to receive on a channel without sender");
                 return Err(ConnectionError::ConnectionClosed);
             }
             Ok(res) => {

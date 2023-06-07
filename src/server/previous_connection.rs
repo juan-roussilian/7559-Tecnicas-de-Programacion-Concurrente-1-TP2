@@ -66,7 +66,7 @@ impl PrevConnection {
                 ServerMessageType::NewConnection(diff) => {
                     self.set_listening_to_id(&message.passed_by, message.sender_id);
                     if message.sender_id == self.my_id {
-                        self.update_myself_by_diff(&diff);
+                        self.update_myself_by_diff(diff);
                         continue;
                     }
                     self.to_next_sender.send(message)?;
@@ -100,7 +100,7 @@ impl PrevConnection {
 
     fn receive_update_of_other_nodes_and_clean_my_updates(&mut self, data: &mut TokenData) {
         data.remove(&self.my_id);
-        for (_server, changes) in data {
+        for changes in data.values() {
             for update in changes {
                 if update.message_type == MessageType::AddPoints {
                     // update account

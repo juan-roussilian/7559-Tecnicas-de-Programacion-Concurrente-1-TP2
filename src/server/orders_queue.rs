@@ -52,3 +52,9 @@ impl OrdersQueue {
         orders
     }
 }
+
+impl Default for OrdersQueue {
+    fn default() -> Self {
+        Self::new()
+    }
+}

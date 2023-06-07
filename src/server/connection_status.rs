@@ -41,3 +41,9 @@ impl ConnectionStatus {
         self.next = Status::Disconnected;
     }
 }
+
+impl Default for ConnectionStatus {
+    fn default() -> Self {
+        ConnectionStatus::new()
+    }
+}
