@@ -9,13 +9,13 @@ pub struct CoffeeMakerRequest {
     pub points: usize,
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize, Serialize, Clone, Copy)]
 pub struct CoffeeMakerResponse {
     pub message_type: MessageType,
     pub status: ResponseStatus,
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize, Serialize, Copy)]
 pub enum ResponseStatus {
     Ok,
     Err(ConnectionError),
