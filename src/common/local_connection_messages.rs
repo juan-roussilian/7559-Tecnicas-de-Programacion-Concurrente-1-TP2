@@ -15,7 +15,7 @@ pub struct CoffeeMakerResponse {
     pub status: ResponseStatus,
 }
 
-#[derive(Deserialize, Serialize, Copy)]
+#[derive(Deserialize, Serialize, Copy, Clone)]
 pub enum ResponseStatus {
     Ok,
     Err(ConnectionError),

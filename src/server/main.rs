@@ -26,6 +26,7 @@ pub mod accounts_manager;
 pub mod address_resolver;
 pub mod constants;
 pub mod memory_accounts_manager;
+pub mod offline_substract_orders_cleaner;
 
 fn get_args() -> Result<ServerArgs, ServerError> {
     let args: Vec<String> = env::args().collect();

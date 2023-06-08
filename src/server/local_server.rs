@@ -1,7 +1,7 @@
 use std::{
     sync::{
         mpsc::{self, Sender},
-        Arc, Mutex,
+        Arc, Condvar, Mutex,
     },
     thread::{self, JoinHandle},
 };
@@ -14,9 +14,10 @@ use crate::{
     address_resolver::id_to_server_port,
     coffee_message_dispatcher::CoffeeMessageDispatcher,
     connection_server::{ConnectionServer, TcpConnectionServer},
-    connection_status::ConnectionStatus,
+    connection_status::{self, ConnectionStatus},
     errors::ServerError,
     next_connection::NextConnection,
+    offline_substract_orders_cleaner::clean_substract_orders_if_offline,
     orders_manager::OrdersManager,
     orders_queue::OrdersQueue,
     previous_connection::PrevConnection,
@@ -57,6 +58,19 @@ impl LocalServer {
         ));
 
         let orders = Arc::new(Mutex::new(OrdersQueue::new()));
+        let orders_clone = orders.clone();
+        let connection_status_clone = connection_status.clone();
+        let request_points_channel_clone = request_points_result_sender.clone();
+        let connected_cond = Arc::new(Condvar::new());
+        let connected_cond_clone = connected_cond.clone();
+        let cleaner_handler = thread::spawn(move || {
+            clean_substract_orders_if_offline(
+                orders_clone,
+                connection_status_clone,
+                request_points_channel_clone,
+                connected_cond_clone,
+            )
+        });
 
         let orders_manager = Arc::new(OrdersManager::new(
             orders.clone(),

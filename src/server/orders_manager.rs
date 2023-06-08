@@ -1,14 +1,14 @@
 use std::sync::{Arc, Condvar};
 
+use lib::common_errors::ConnectionError;
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::Mutex;
 use std::thread;
-use lib::common_errors::ConnectionError;
 
+use crate::connection_status::ConnectionStatus;
 use lib::local_connection_messages::{
     CoffeeMakerRequest, CoffeeMakerResponse, MessageType, ResponseStatus,
 };
-use crate::connection_status::ConnectionStatus;
 
 use crate::errors::ServerError;
 use crate::orders_queue::OrdersQueue;
@@ -16,8 +16,7 @@ use crate::server_messages::ServerMessage;
 
 pub struct OrdersManager {
     orders: Arc<Mutex<OrdersQueue>>,
-    connection_status: Arc<Mutex<ConnectionStatus>>,
-    connected: Condvar,
+
     token_receiver: Receiver<ServerMessage>,
     to_next_sender: Sender<ServerMessage>,
     request_points_channel: Sender<(CoffeeMakerResponse, usize)>,
@@ -27,8 +26,6 @@ pub struct OrdersManager {
 impl OrdersManager {
     pub fn new(
         orders: Arc<Mutex<OrdersQueue>>,
-        connection_status: Arc<Mutex<ConnectionStatus>>,
-        connected: Condvar,
         token_receiver: Receiver<ServerMessage>,
         to_next_sender: Sender<ServerMessage>,
         request_points_channel: Sender<(CoffeeMakerResponse, usize)>,
@@ -36,8 +33,6 @@ impl OrdersManager {
     ) -> OrdersManager {
         OrdersManager {
             orders,
-            connection_status,
-            connected,
             token_receiver,
             to_next_sender,
             request_points_channel,
@@ -46,25 +41,6 @@ impl OrdersManager {
     }
 
     pub fn handle_orders(&mut self) -> Result<(), ServerError> {
-
-        let orders_clone = self.orders.clone();
-        let connection_status_clone = self.connection_status.clone();
-        let connection_condvar_clone = &self.connected;
-        let request_points_channel_clone = self.request_points_channel.clone();
-
-        let handle = thread::spawn(move || {
-            let _ = connection_condvar_clone.wait_while(connection_status_clone.lock()?, |connection_status| {
-                connection_status.is_online()
-            });
-
-            let discarded_orders = orders_clone.lock().unwrap().get_and_clear_request_points_orders();
-
-            let response = CoffeeMakerResponse{ message_type: MessageType::RequestPoints, status: ResponseStatus::Err(ConnectionError::UnexpectedError)};
-            for order in discarded_orders.iter(){
-                request_points_channel_clone.send((response, order.1))?;
-            }
-        });
-
         loop {
             let token = self.token_receiver.recv()?;
             let mut orders = self.orders.lock()?;
