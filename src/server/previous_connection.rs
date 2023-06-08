@@ -11,7 +11,9 @@ use lib::{
 
 use crate::{
     connection_status::ConnectionStatus,
-    server_messages::{Diff, ServerMessage, ServerMessageType, TokenData},
+    server_messages::{
+        create_lost_connection_message, Diff, ServerMessage, ServerMessageType, TokenData,
+    },
 };
 
 pub struct PrevConnection {
@@ -41,24 +43,20 @@ impl PrevConnection {
         }
     }
 
-    fn create_lost_connection_message(&self) -> ServerMessage {
-        let to_id = self.listening_to_id.unwrap_or(self.my_id);
-        ServerMessage {
-            sender_id: self.my_id,
-            message_type: ServerMessageType::LostConnection(to_id),
-            passed_by: HashSet::new(),
-        }
-    }
-
     pub fn listen(&mut self) -> Result<(), ConnectionError> {
         loop {
             let encoded = task::block_on(self.connection.recv());
-            if encoded.is_err() {
-                self.connection_status.lock()?.set_prev_offline();
-                self.to_next_sender
-                    .send(self.create_lost_connection_message())?;
-                return Err(ConnectionError::ConnectionLost);
+            if let Err(e) = encoded {
+                if e == ConnectionError::ConnectionLost {
+                    self.connection_status.lock()?.set_prev_offline();
+                    let to_id = self.listening_to_id.unwrap_or(self.my_id);
+                    self.to_next_sender
+                        .send(create_lost_connection_message(self.my_id, to_id))?;
+                    return Err(ConnectionError::ConnectionLost);
+                }
+                return Ok(()); // Closed connection
             }
+
             let mut encoded = encoded.unwrap();
             let mut message: ServerMessage = deserialize(&mut encoded)?;
 
@@ -76,11 +74,15 @@ impl PrevConnection {
                     return Ok(());
                 }
                 ServerMessageType::Token(data) => {
+                    // todo marcar en mutex que tenemos el token
                     self.receive_update_of_other_nodes_and_clean_my_updates(data);
                     self.to_orders_manager_sender.send(message)?;
                 }
                 ServerMessageType::LostConnection(_) => {
-                    self.to_orders_manager_sender.send(message)?;
+                    // todo si tenemos el token lo dropeamos
+                    // si ya paso por nosotros, lo dropeamos
+                    // si no lo pasamos al next sender, por ahi se perdio el token
+                    self.to_next_sender.send(message)?;
                 }
             }
         }

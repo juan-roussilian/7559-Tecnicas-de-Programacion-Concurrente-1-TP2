@@ -11,6 +11,7 @@ pub enum ServerError {
     AccountNotFound,
     NotEnoughPointsInAccount,
     ConnectionLost,
+    SerializationError,
 }
 
 impl<T> From<std::sync::PoisonError<T>> for ServerError {
@@ -30,5 +31,12 @@ impl From<std::sync::mpsc::RecvError> for ServerError {
     fn from(_: std::sync::mpsc::RecvError) -> Self {
         error!("Recv error on channel, closed");
         ServerError::ChannelError
+    }
+}
+
+impl From<Box<bincode::ErrorKind>> for ServerError {
+    fn from(_: Box<bincode::ErrorKind>) -> Self {
+        error!("Error serializing message");
+        ServerError::SerializationError
     }
 }

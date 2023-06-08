@@ -71,7 +71,7 @@ impl ConnectionProtocol for TcpConnection {
         match self.reader.read_until(b';', &mut buffer).await {
             Ok(read) => {
                 if read == 0 {
-                    info!("[TCP CONNECTION] Closed connection with a coffee maker");
+                    info!("[TCP CONNECTION] Closed connection");
                     return Err(ConnectionError::ConnectionClosed);
                 }
                 Ok(buffer)
