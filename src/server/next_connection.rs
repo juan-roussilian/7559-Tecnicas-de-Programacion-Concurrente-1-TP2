@@ -82,14 +82,18 @@ impl NextConnection {
         }
     }
 
-    fn attempt_connections(&mut self, start: usize, stop: usize) -> Result<(), ServerError> {
+    fn attempt_connections(
+        &mut self,
+        start: usize,
+        stop: usize,
+        message: ServerMessage,
+    ) -> Result<(), ServerError> {
         for id in start..stop {
             let result = TcpConnection::new_client_connection(id_to_address(id));
             if let Ok(connection) = result {
                 self.next_id = id;
                 self.connection = Some(Box::new(connection));
                 self.connection_status.lock()?.set_next_online();
-                let message = create_new_connection_message(self.id);
                 if self.send_message(message).is_err() {
                     continue;
                 }
@@ -99,18 +103,21 @@ impl NextConnection {
         Err(ServerError::ConnectionLost)
     }
 
-    fn connect_to_next(&mut self) -> Result<(), ServerError> {
+    fn connect_to_next(&mut self, message: ServerMessage) -> Result<(), ServerError> {
         let peer_count = self.peer_count;
         let my_id = self.id;
-        if self.attempt_connections(my_id + 1, peer_count).is_ok() {
+        if self
+            .attempt_connections(my_id + 1, peer_count, message)
+            .is_ok()
+        {
             return Ok(());
         }
-        if self.attempt_connections(0, my_id).is_ok() {
+        if self.attempt_connections(0, my_id, message).is_ok() {
             return Ok(());
         }
         if my_id == 0 && self.initial_connection {
             self.initial_connection = false;
-            return self.attempt_connections(0, 1);
+            return self.attempt_connections(0, 1, message);
         }
         self.connection_status.lock()?.set_next_offline();
         return Err(ServerError::ConnectionLost);
@@ -118,8 +125,9 @@ impl NextConnection {
 
     fn try_to_connect_wait_if_offline(&mut self) {
         let mut wait = INITIAL_WAIT_IN_MS_FOR_CONNECTION_ATTEMPT;
+        let message = create_new_connection_message(self.id);
         loop {
-            if self.connect_to_next().is_ok() {
+            if self.connect_to_next(message).is_ok() {
                 return;
             }
             sleep(Duration::from_millis(wait));
@@ -215,12 +223,50 @@ impl NextConnection {
                     self.last_token = Some(message.clone());
                     _ = self.send_message(message);
                 }
-                ServerMessageType::MaybeWeLostTheTokenTo(_) => {
+                ServerMessageType::MaybeWeLostTheTokenTo(lost_id) => {
                     // si el que perdio la conexion es al que apuntamos
                     // SOLO si es al que apuntamos, que nos llegue este mensaje es que se perdio el token
                     // (llego al final de la carrera - no estaba el token circulando porque se perdio)
                     // nos conectamos con el siguiente y mandarle mensaje token guardado
+                    if self.next_id == *lost_id {
+                        if let Some(token) = self.last_token.as_ref() {
+                            self.connect_to_next(token.clone());
+                        }
+                    }
+                    message.passed_by.insert(self.id);
+                    if self.send_message(message).is_err() {
+                        let mut in_order = self.next_id..*lost_id;
+                        if *lost_id < self.next_id {
+                            let ring_return = 0..*lost_id;
+                            in_order = self.next_id..self.peer_count;
+                            in_order = in_order + ring_return;
+                        }
 
+                        for id in in_order {
+                            let result = TcpConnection::new_client_connection(id_to_address(id));
+                            if let Ok(connection) = result {
+                                self.next_id = id;
+                                self.connection = Some(Box::new(connection));
+                                self.connection_status.lock()?.set_next_online();
+                                if self.send_message(message).is_ok() {
+                                    break;
+                                }
+                            }
+                        }
+
+                        if self.connection.is_some() {
+                            continue;
+                        }
+
+                        // Yo perdi la conexion
+                        if !self.connection_status.lock()?.is_prev_online() {
+                            continue;
+                        }
+
+                        if let Some(token) = self.last_token.as_ref() {
+                            self.connect_to_next(token.clone());
+                        }
+                    }
                     // mas que verlo como un lost connection verlo como un maybe we lost the token, circula por la red en forma de carrera (si esta el token)
                 }
                 _ => {}
