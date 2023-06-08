@@ -3,8 +3,8 @@ use std::collections::HashMap;
 use lib::local_connection_messages::{CoffeeMakerRequest, MessageType};
 
 pub struct OrdersQueue {
-    adding_orders: Vec<CoffeeMakerRequest>,
-    request_points_orders: Vec<CoffeeMakerRequest>,
+    adding_orders: Vec<(CoffeeMakerRequest, usize)>,
+    request_points_orders: Vec<(CoffeeMakerRequest, usize)>,
 }
 
 impl OrdersQueue {
@@ -15,10 +15,10 @@ impl OrdersQueue {
         }
     }
 
-    pub fn add(&mut self, order: CoffeeMakerRequest) {
+    pub fn add(&mut self, order: CoffeeMakerRequest, coffee_maker_id: usize) {
         match order.message_type {
-            MessageType::AddPoints => self.adding_orders.push(order),
-            MessageType::RequestPoints => self.request_points_orders.push(order),
+            MessageType::AddPoints => self.adding_orders.push((order, coffee_maker_id)),
+            MessageType::RequestPoints => self.request_points_orders.push((order, coffee_maker_id)),
             _ => {}
         }
     }
@@ -30,7 +30,7 @@ impl OrdersQueue {
     pub fn get_and_clear_adding_orders(&mut self) -> Vec<CoffeeMakerRequest> {
         let mut reduced = HashMap::new();
         for req in &self.adding_orders {
-            *reduced.entry(req.account_id).or_insert(req.points) += req.points;
+            *reduced.entry(req.0.account_id).or_insert(req.0.points) += req.0.points;
         }
         self.adding_orders.clear();
         reduced
@@ -43,7 +43,7 @@ impl OrdersQueue {
             .collect()
     }
 
-    pub fn get_and_clear_request_points_orders(&mut self) -> Vec<CoffeeMakerRequest> {
+    pub fn get_and_clear_request_points_orders(&mut self) -> Vec<(CoffeeMakerRequest, usize)> {
         let mut orders = Vec::new();
         for req in self.request_points_orders.iter() {
             orders.push(*req);

@@ -61,7 +61,7 @@ impl CoffeeMessageDispatcher {
                         }
                         let mut orders = orders.unwrap();
 
-                        orders.add(new_request.0);
+                        orders.add(new_request.0, new_request.1);
                     }
 
                     orders_response_sender
@@ -97,7 +97,7 @@ impl CoffeeMessageDispatcher {
                         return Err(ServerError::LockError)
                     }
                     let mut orders = orders.unwrap();
-                    orders.add(new_request.0); // TODO agregar de que cafetera
+                    orders.add(new_request.0, new_request.1); // TODO agregar de que cafetera
                     // OrdersManager will be the one that sends the CoffeeMakerResponse through orders_request_sender channel in this case
                 }
 
