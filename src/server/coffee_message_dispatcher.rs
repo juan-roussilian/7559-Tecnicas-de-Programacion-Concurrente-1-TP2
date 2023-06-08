@@ -11,6 +11,8 @@ use std::collections::HashMap;
 use std::sync::mpsc::{ Receiver, Sender };
 use std::sync::{ Arc, Mutex };
 use std::thread;
+use log::{error, info};
+use crate::errors::ServerError;
 
 pub struct CoffeeMessageDispatcher {
     is_connected: Arc<Mutex<ConnectionStatus>>,
@@ -38,21 +40,27 @@ impl CoffeeMessageDispatcher {
         orders_request_sender: Sender<CoffeeMakerRequest>,
         orders_response_sender: Sender<(CoffeeMakerResponse, usize)>,
         orders_response_receiver: Receiver<(CoffeeMakerResponse, usize)>
-    ) {
+    ) -> Result<(), ServerError>{
+        let senders_clone = self.machine_response_senders.clone();
         let handle = thread::spawn(move || {
             Self::send_coffee_responses(
-                self.machine_response_senders.clone(),
+                senders_clone,
                 orders_response_receiver
             );
         });
 
         loop {
-            let new_request = self.machine_request_receiver.recv().unwrap();
+            let new_request = self.machine_request_receiver.recv()?;
 
             match new_request.0.message_type {
                 MessageType::AddPoints => {
                     {
-                        let mut orders = self.orders.lock().unwrap();
+                        let orders = self.orders.lock();
+                        if orders.is_err(){
+                            return Err(ServerError::LockError)
+                        }
+                        let mut orders = orders.unwrap();
+
                         orders.add(new_request.0);
                     }
 
@@ -63,12 +71,16 @@ impl CoffeeMessageDispatcher {
                                 status: ResponseStatus::Ok,
                             },
                             new_request.1,
-                        ))
-                        .unwrap();
+                        ))?;
                 }
 
                 MessageType::RequestPoints => {
-                    let is_now_connected = self.is_connected.lock().unwrap().is_online();
+                    let is_now_connected = self.is_connected.lock();
+                    if is_now_connected.is_err(){
+                        return Err(ServerError::LockError)
+                    }
+                    let is_now_connected = is_now_connected.unwrap().is_online();
+
                     if !is_now_connected {
                         orders_response_sender
                             .send((
@@ -77,17 +89,20 @@ impl CoffeeMessageDispatcher {
                                     status: ResponseStatus::Err(ConnectionError::ConnectionLost),
                                 },
                                 new_request.1,
-                            ))
-                            .unwrap();
+                            ))?;
                     }
 
-                    let mut orders = self.orders.lock().unwrap();
+                    let orders = self.orders.lock();
+                    if orders.is_err(){
+                        return Err(ServerError::LockError)
+                    }
+                    let mut orders = orders.unwrap();
                     orders.add(new_request.0); // TODO agregar de que cafetera
                     // OrdersManager will be the one that sends the CoffeeMakerResponse through orders_request_sender channel in this case
                 }
 
                 _ => {
-                    orders_request_sender.send(new_request.0.clone()).unwrap();
+                    orders_request_sender.send(new_request.0)?;
                     orders_response_sender
                         .send((
                             CoffeeMakerResponse {
@@ -95,8 +110,7 @@ impl CoffeeMessageDispatcher {
                                 status: ResponseStatus::Ok,
                             },
                             new_request.1,
-                        ))
-                        .unwrap();
+                        ))?;
                 }
             }
         }
@@ -107,15 +121,20 @@ impl CoffeeMessageDispatcher {
         orders_response_receiver: Receiver<(CoffeeMakerResponse, usize)>
     ) {
         loop {
-            let (response, machine_id) = orders_response_receiver.recv().unwrap();
-            let mut machine_senders_guard = machine_response_senders.lock().unwrap();
-            match machine_senders_guard.get(&machine_id) {
-                Some(sender) => {
-                    sender.send(response).unwrap();
-                }
-                None => {
-                    // TODO: What happens if we are receiving messages from a non-registered coffeemaker?
-                    // Maybe we should check if the key exists way before this, when we get a request.
+            let next_response = orders_response_receiver.recv();
+            if next_response.is_err(){
+                return; // the sender has disconnected, no more responses.
+            }
+            let (response, machine_id) = next_response.unwrap();
+
+            let machine_senders_guard = machine_response_senders.lock();
+            if machine_senders_guard.is_err(){
+                error!("Unable to lock senders for sending response")
+            }
+            let machine_senders = machine_senders_guard.unwrap();
+            if let Some(sender) = machine_senders.get(&machine_id) {
+                if sender.send(response).is_err(){
+                    info!("Trying to send response through closed coffee maker channel")
                 }
             }
         }
