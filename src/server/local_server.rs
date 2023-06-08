@@ -32,6 +32,7 @@ pub struct LocalServer {
     next_connection: Arc<NextConnection>,
     orders_manager: Arc<OrdersManager>,
     coffee_message_dispatcher: Arc<CoffeeMessageDispatcher>,
+    have_token: Arc<Mutex<bool>>,
 }
 
 impl LocalServer {
@@ -46,11 +47,13 @@ impl LocalServer {
         let (orders_from_coffee_sender, orders_from_coffee_receiver) = mpsc::channel();
 
         let connection_status = Arc::new(Mutex::new(ConnectionStatus::new()));
+        let have_token = Arc::new(Mutex::new(false));
         let next_connection = Arc::new(NextConnection::new(
             id,
             peer_count,
             next_conn_receiver,
             connection_status.clone(),
+            have_token.clone(),
         ));
 
         let orders = Arc::new(Mutex::new(OrdersQueue::new()));
@@ -78,6 +81,7 @@ impl LocalServer {
             to_orders_manager_sender,
             orders_manager,
             coffee_message_dispatcher,
+            have_token,
         })
     }
 
@@ -93,6 +97,7 @@ impl LocalServer {
                 to_orders_manager_channel,
                 self.connection_status.clone(),
                 self.id,
+                self.have_token.clone(),
             );
 
             let new_prev_handle = thread::spawn(move || previous.listen());

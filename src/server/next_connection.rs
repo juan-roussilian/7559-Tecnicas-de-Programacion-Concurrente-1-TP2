@@ -23,8 +23,8 @@ use crate::{
     },
     errors::ServerError,
     server_messages::{
-        create_new_connection_message, create_token_message, Diff, ServerMessage,
-        ServerMessageType, TokenData,
+        create_close_connection_message, create_new_connection_message, create_token_message, Diff,
+        ServerMessage, ServerMessageType, TokenData,
     },
 };
 
@@ -54,6 +54,7 @@ pub struct NextConnection {
     initial_connection: bool,
     next_id: usize,
     last_token: Option<ServerMessage>,
+    have_token: Arc<Mutex<bool>>,
 }
 
 impl NextConnection {
@@ -62,6 +63,7 @@ impl NextConnection {
         peer_count: usize,
         next_conn_receiver: Receiver<ServerMessage>,
         connection_status: Arc<Mutex<ConnectionStatus>>,
+        have_token: Arc<Mutex<bool>>,
     ) -> NextConnection {
         let mut initial_connection = false;
         if id == 0 {
@@ -76,6 +78,7 @@ impl NextConnection {
             initial_connection,
             next_id: id,
             last_token: None,
+            have_token,
         }
     }
 
@@ -166,18 +169,33 @@ impl NextConnection {
             }
             let mut message = result.unwrap();
             match &mut message.message_type {
-                ServerMessageType::NewConnection(_) => {
-                    // no lo pude haber enviado yo, porque ya se habria manejado, quedan solo los otros casos
-
-                    // todo, se puede mover al previous
-                    // si no lo envie yo, pero estoy entre los que ya vieron el mensaje, lo descarto, esta circulando cuando ya dio vuelta
-
-                    // si la nueva conexion esta entre yo y al que estoy conectado
-                    // aviso al que estoy conectado con close connection
-                    // me conecto al nuevo (o reintentamos con todos? reset general)
-                    // le envio a la nueva conexion los datos, se agregan al diff
-
-                    // si no esta en el medio, lo paso al siguiente y me agrego a la lista de por quien paso
+                ServerMessageType::NewConnection(diff) => {
+                    if is_in_between(self.id, message.sender_id, self.next_id, self.peer_count) {
+                        self.add_data_to_diff(diff);
+                        let result = self.connect_to_new_conn(message.sender_id);
+                        if result.is_err() {
+                            continue;
+                        }
+                        let new_conn = result.unwrap();
+                        if self
+                            .send_message(create_close_connection_message(self.id))
+                            .is_err()
+                        {
+                            error!(
+                                "[SENDER {}] Failed to notify {} of close connection",
+                                self.id, self.next_id
+                            );
+                        }
+                        self.next_id = message.sender_id;
+                        self.connection = Some(new_conn);
+                    }
+                    message.passed_by.insert(self.id);
+                    if self.send_message(message).is_err() {
+                        error!(
+                            "[SENDER {}] Failed to send to {} new connection message",
+                            self.id, self.next_id
+                        );
+                    }
                 }
                 ServerMessageType::Token(_) => {
                     // enviar el token al siguiente
@@ -197,7 +215,7 @@ impl NextConnection {
                     self.last_token = Some(message.clone());
                     _ = self.send_message(message);
                 }
-                ServerMessageType::LostConnection(_) => {
+                ServerMessageType::MaybeWeLostTheTokenTo(_) => {
                     // si el que perdio la conexion es al que apuntamos
                     // SOLO si es al que apuntamos, que nos llegue este mensaje es que se perdio el token
                     // (llego al final de la carrera - no estaba el token circulando porque se perdio)
@@ -222,4 +240,24 @@ impl NextConnection {
         }
         Err(ServerError::ConnectionLost)
     }
+
+    fn add_data_to_diff(&self, diff: &mut Diff) {
+        // TODO llamar al accounts manager para que nos de o agregue al diff todo lo mas nuevo
+    }
+
+    fn connect_to_new_conn(
+        &mut self,
+        sender_id: usize,
+    ) -> Result<Box<dyn ConnectionProtocol>, ServerError> {
+        let result = TcpConnection::new_client_connection(id_to_address(sender_id));
+        if let Ok(connection) = result {
+            return Ok(Box::new(connection));
+        }
+        Err(ServerError::ConnectionLost)
+    }
+}
+
+fn is_in_between(my_id: usize, sender_id: usize, next_id: usize, peer_count: usize) -> bool {
+    // caso cerramos circulo o caso en orden
+    (next_id < my_id && my_id < sender_id) || (my_id < sender_id && sender_id < next_id)
 }

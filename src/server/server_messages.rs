@@ -18,7 +18,7 @@ pub enum ServerMessageType {
     NewConnection(Diff),
     CloseConnection,
     Token(TokenData),
-    LostConnection(ServerId),
+    MaybeWeLostTheTokenTo(ServerId),
 }
 
 type ServerId = usize;
@@ -49,8 +49,12 @@ pub fn create_token_message(sender_id: usize) -> ServerMessage {
     create_server_message(sender_id, ServerMessageType::Token(HashMap::new()))
 }
 
-pub fn create_lost_connection_message(sender_id: usize, to_id: usize) -> ServerMessage {
-    create_server_message(sender_id, ServerMessageType::LostConnection(to_id))
+pub fn create_maybe_we_lost_the_token_message(sender_id: usize, to_id: usize) -> ServerMessage {
+    create_server_message(sender_id, ServerMessageType::MaybeWeLostTheTokenTo(to_id))
+}
+
+pub fn create_close_connection_message(sender_id: usize) -> ServerMessage {
+    create_server_message(sender_id, ServerMessageType::CloseConnection)
 }
 
 fn create_server_message(sender_id: usize, message_type: ServerMessageType) -> ServerMessage {

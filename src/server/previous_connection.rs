@@ -12,7 +12,7 @@ use lib::{
 use crate::{
     connection_status::ConnectionStatus,
     server_messages::{
-        create_lost_connection_message, Diff, ServerMessage, ServerMessageType, TokenData,
+        create_maybe_we_lost_the_token_message, Diff, ServerMessage, ServerMessageType, TokenData,
     },
 };
 
@@ -23,6 +23,7 @@ pub struct PrevConnection {
     connection_status: Arc<Mutex<ConnectionStatus>>,
     listening_to_id: Option<usize>,
     my_id: usize,
+    have_token: Arc<Mutex<bool>>,
 }
 
 impl PrevConnection {
@@ -32,6 +33,7 @@ impl PrevConnection {
         to_orders_manager_sender: Sender<ServerMessage>,
         connection_status: Arc<Mutex<ConnectionStatus>>,
         my_id: usize,
+        have_token: Arc<Mutex<bool>>,
     ) -> PrevConnection {
         PrevConnection {
             connection,
@@ -40,6 +42,7 @@ impl PrevConnection {
             connection_status,
             listening_to_id: None,
             my_id,
+            have_token,
         }
     }
 
@@ -51,7 +54,7 @@ impl PrevConnection {
                     self.connection_status.lock()?.set_prev_offline();
                     let to_id = self.listening_to_id.unwrap_or(self.my_id);
                     self.to_next_sender
-                        .send(create_lost_connection_message(self.my_id, to_id))?;
+                        .send(create_maybe_we_lost_the_token_message(self.my_id, to_id))?;
                     return Err(ConnectionError::ConnectionLost);
                 }
                 return Ok(()); // Closed connection
@@ -67,6 +70,9 @@ impl PrevConnection {
                         self.update_myself_by_diff(diff);
                         continue;
                     }
+                    if message.passed_by.contains(&self.my_id) {
+                        continue;
+                    }
                     self.to_next_sender.send(message)?;
                 }
                 ServerMessageType::CloseConnection => {
@@ -74,14 +80,19 @@ impl PrevConnection {
                     return Ok(());
                 }
                 ServerMessageType::Token(data) => {
-                    // todo marcar en mutex que tenemos el token
+                    self.set_listening_to_id(&message.passed_by, message.sender_id);
+                    *self.have_token.lock()? = true;
                     self.receive_update_of_other_nodes_and_clean_my_updates(data);
                     self.to_orders_manager_sender.send(message)?;
                 }
-                ServerMessageType::LostConnection(_) => {
-                    // todo si tenemos el token lo dropeamos
-                    // si ya paso por nosotros, lo dropeamos
-                    // si no lo pasamos al next sender, por ahi se perdio el token
+                ServerMessageType::MaybeWeLostTheTokenTo(_) => {
+                    self.set_listening_to_id(&message.passed_by, message.sender_id);
+                    if *self.have_token.lock()? {
+                        continue;
+                    }
+                    if message.passed_by.contains(&self.my_id) {
+                        continue;
+                    }
                     self.to_next_sender.send(message)?;
                 }
             }
