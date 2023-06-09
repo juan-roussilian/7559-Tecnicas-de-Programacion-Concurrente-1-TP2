@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::RwLock;
+use std::collections::hash_map::Entry::Vacant;
 
 use crate::account::Account;
 use crate::accounts_manager::AccountsManager;
@@ -11,7 +12,7 @@ pub struct MemoryAccountsManager {
 }
 
 impl AccountsManager for MemoryAccountsManager {
-    fn new(&self) -> Self {
+    fn new() -> Self {
         MemoryAccountsManager {
             accounts: HashMap::new(),
         }
@@ -23,16 +24,15 @@ impl AccountsManager for MemoryAccountsManager {
         points: usize,
         operation_time: Option<u128>,
     ) -> Result<(), ServerError> {
-        if self.accounts.contains_key(&account_id) {
+        if let Vacant(e) = self.accounts.entry(account_id) {
+            if let Some(new_account) = Account::new(account_id, points) {
+                e.insert(Arc::new(RwLock::new(new_account)));
+            }
+        } else {
             if let Some(account) = self.accounts.get(&account_id) {
                 if let Ok(mut account_guard) = account.write() {
                     account_guard.add_points(points, operation_time)?
                 }
-            }
-        } else {
-            if let Some(new_account) = Account::new(account_id, points) {
-                self.accounts
-                    .insert(account_id, Arc::new(RwLock::new(new_account)));
             }
         }
         Ok(())
