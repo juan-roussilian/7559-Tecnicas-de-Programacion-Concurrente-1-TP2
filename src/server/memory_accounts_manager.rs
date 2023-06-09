@@ -2,7 +2,7 @@ use std::collections::hash_map::Entry::Vacant;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::RwLock;
-
+use crate::server_messages::UpdatedAccount;
 use crate::account::Account;
 use crate::accounts_manager::AccountsManager;
 use crate::errors::ServerError;
@@ -100,7 +100,7 @@ impl AccountsManager for MemoryAccountsManager {
     }
     fn get_most_recent_update(&self) -> u128 {
         let mut latest_update: u128 = 0;
-        for (id, account) in self.accounts.iter() {
+        for (_, account) in self.accounts.iter() {
             if let Ok(guard) = account.read() {
                 let account_last_update = guard.last_updated_on();
                 if latest_update < account_last_update {
@@ -109,5 +109,18 @@ impl AccountsManager for MemoryAccountsManager {
             }
         }
         latest_update
+    }
+
+    fn get_accounts_updated_after(&self, timestamp: u128) -> Vec<UpdatedAccount> {
+        let mut updated_accounts = vec![];
+        for (id, account) in self.accounts.iter() {
+            if let Ok(guard) = account.read() {
+                let last_updated_on = guard.last_updated_on();
+                if timestamp < last_updated_on {
+                    updated_accounts.push(UpdatedAccount{id:*id, amount:guard.points(),last_updated_on});
+                }
+            }
+        }
+        updated_accounts
     }
 }
