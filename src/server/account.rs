@@ -25,6 +25,10 @@ impl Account {
         self.points
     }
 
+    pub fn last_updated_on(&self) -> u128 {
+        self.last_updated_on
+    }
+
     pub fn is_reserved(&mut self) -> bool {
         self.is_reserved
     }
@@ -63,10 +67,9 @@ impl Account {
                 if self.last_updated_on < timestamp {
                     self.points -= points;
                     self.is_reserved = false;
-                    Ok(())
-                } else {
-                    Err(ServerError::OperationIsOutdated)
+                    return Ok(());
                 }
+                Err(ServerError::OperationIsOutdated)
             }
             None => {
                 self.points -= points;
@@ -75,16 +78,25 @@ impl Account {
             }
         }
     }
+    pub fn update(&mut self, points: usize, operation_time: u128) -> Result<(), ServerError> {
+        if self.last_updated_on < operation_time {
+            self.points = points;
+            self.last_updated_on = operation_time;
+            Ok(())
+        } else {
+            Err(ServerError::OperationIsOutdated)
+        }
+    }
+
     pub fn cancel_reservation(&mut self) {
         self.is_reserved = false;
     }
     pub fn reserve(&mut self) -> Result<(), ServerError> {
         if self.is_reserved {
-            Err(ServerError::AccountIsReserved)
-        } else {
-            self.is_reserved = true;
-            Ok(())
+            return Err(ServerError::AccountIsReserved);
         }
+        self.is_reserved = true;
+        Ok(())
     }
 }
 
