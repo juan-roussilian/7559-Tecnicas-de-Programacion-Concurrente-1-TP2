@@ -11,12 +11,15 @@ pub struct MemoryAccountsManager {
     accounts: HashMap<usize, Arc<RwLock<Account>>>,
 }
 
-impl AccountsManager for MemoryAccountsManager {
-    fn new() -> Self {
+impl MemoryAccountsManager {
+    pub fn new() -> Self {
         MemoryAccountsManager {
             accounts: HashMap::new(),
         }
     }
+}
+
+impl AccountsManager for MemoryAccountsManager {
 
     fn add_points(
         &mut self,

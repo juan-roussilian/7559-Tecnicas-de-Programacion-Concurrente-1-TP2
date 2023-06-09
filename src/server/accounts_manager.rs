@@ -1,7 +1,6 @@
 use crate::errors::ServerError;
 
 pub trait AccountsManager {
-    fn new() -> Self;
     fn add_points(
         &mut self,
         account_id: usize,
