@@ -10,6 +10,7 @@ use std::{
 use async_std::task;
 use lib::{
     connection_protocol::{ConnectionProtocol, TcpConnection},
+    local_connection_messages::{CoffeeMakerRequest, MessageType},
     serializer::serialize,
 };
 use log::{error, info};
@@ -140,6 +141,7 @@ impl NextConnection {
 
     pub fn handle_message_to_next(&mut self) -> Result<(), ServerError> {
         let timeout = Duration::from_millis(TO_NEXT_CONN_CHANNEL_TIMEOUT_IN_MS);
+        let mut pending_sums = vec![];
         self.try_to_connect_wait_if_offline();
         if self.id == 0 {
             if self.send_message(create_token_message(self.id)).is_err() {
@@ -178,7 +180,7 @@ impl NextConnection {
             let mut message = result.unwrap();
             match &mut message.message_type {
                 ServerMessageType::NewConnection(diff) => {
-                    if is_in_between(self.id, message.sender_id, self.next_id, self.peer_count) {
+                    if is_in_between(self.id, message.sender_id, self.next_id) {
                         self.add_data_to_diff(diff);
                         let result = self.connect_to_new_conn(message.sender_id);
                         if result.is_err() {
@@ -205,23 +207,42 @@ impl NextConnection {
                         );
                     }
                 }
-                ServerMessageType::Token(_) => {
-                    // enviar el token al siguiente
-                    // si tenemos cambios de una perdida anterior donde justo teniamos el token agregarlos y limpiarlo
-
-                    // si falla reintentar conectarnos con el/los siguiente/s
-                    // si fallan todas las reconexiones, perdimos la conexion y el token no es valido
-                    // guardar los cambios hechos en otro lugar (solo las sumas) para appendearlos al proximo token cuando recuperemos la conexion
-                    // hacemos continue, reintentamos hasta poder
-                    // si perdimos la conexion marcamos que ya no tenemos el token
-
-                    // si no fallan todas las reconexiones (ej logramos conectarnos al siguiente del siguiente)
-                    // le mandamos el token, no se perdio
+                ServerMessageType::Token(token_data) => {
+                    let mut token_data_copy = token_data.clone();
 
                     // marcamos en un mutex que ya no tenemos el token
+                    *self.have_token.lock()? = false;
 
-                    self.last_token = Some(message.clone());
-                    _ = self.send_message(message);
+                    if !pending_sums.is_empty() {
+                        token_data
+                            .entry(self.id)
+                            .or_insert(pending_sums.clone())
+                            .append(&mut pending_sums);
+                    }
+
+                    let token_backup = Some(message.clone());
+                    // enviar el token al siguiente
+                    if self.send_message(message.clone()).is_err() {
+                        // si tenemos cambios de una perdida anterior donde justo teniamos el token agregarlos y limpiarlo
+                        // si falla reintentar conectarnos con el/los siguiente/s
+                        if self.connect_to_next(message).is_err() {
+                            // si fallan todas las reconexiones, perdimos la conexion y el token no es valido
+                            // guardar los cambios hechos en otro lugar (solo las sumas) para appendearlos al proximo token cuando recuperemos la conexion
+                            // hacemos continue, reintentamos hasta poder
+                            if let Some(requests) = token_data_copy.remove(&self.id) {
+                                let mut sums = requests
+                                    .into_iter()
+                                    .filter(|req| req.message_type == MessageType::AddPoints)
+                                    .collect::<Vec<_>>();
+                                pending_sums.append(&mut sums);
+                            }
+                            continue;
+                        }
+                    }
+                    // si no fallan todas las reconexiones (ej logramos conectarnos al siguiente del siguiente)
+                    // le mandamos el token, no se perdio
+                    self.last_token = token_backup;
+                    pending_sums.clear();
                 }
                 ServerMessageType::MaybeWeLostTheTokenTo(lost_id) => {
                     let lost_id = *lost_id;
@@ -309,7 +330,7 @@ impl NextConnection {
     }
 }
 
-fn is_in_between(my_id: usize, sender_id: usize, next_id: usize, peer_count: usize) -> bool {
+fn is_in_between(my_id: usize, sender_id: usize, next_id: usize) -> bool {
     // caso cerramos circulo o caso en orden
     (next_id < my_id && my_id < sender_id) || (my_id < sender_id && sender_id < next_id)
 }
