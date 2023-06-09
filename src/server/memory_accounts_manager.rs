@@ -1,7 +1,7 @@
+use std::collections::hash_map::Entry::Vacant;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::RwLock;
-use std::collections::hash_map::Entry::Vacant;
 
 use crate::account::Account;
 use crate::accounts_manager::AccountsManager;
@@ -20,7 +20,6 @@ impl MemoryAccountsManager {
 }
 
 impl AccountsManager for MemoryAccountsManager {
-
     fn add_points(
         &mut self,
         account_id: usize,
@@ -42,18 +41,15 @@ impl AccountsManager for MemoryAccountsManager {
     }
 
     fn request_points(&self, account_id: usize, points: usize) -> Result<(), ServerError> {
-        if self.accounts.contains_key(&account_id) {
-            if let Some(account) = self.accounts.get(&account_id) {
-                if let Ok(mut account_guard) = account.write() {
-                    if account_guard.points() >= points {
-                        account_guard.reserve()?
-                    }
-                }
+        if let Some(account) = self.accounts.get(&account_id) {
+            let mut account_guard = account.write()?;
+            if account_guard.points() >= points {
+                return account_guard.reserve();
             }
-        } else {
-            return Err(ServerError::AccountNotFound);
+            return Err(ServerError::NotEnoughPointsInAccount);
         }
-        Ok(())
+
+        Err(ServerError::AccountNotFound)
     }
     fn cancel_requested_points(&self, account_id: usize) -> Result<(), ServerError> {
         if self.accounts.contains_key(&account_id) {
@@ -84,5 +80,34 @@ impl AccountsManager for MemoryAccountsManager {
             return Err(ServerError::AccountNotFound);
         }
         Ok(())
+    }
+    fn update(
+        &self,
+        account_id: usize,
+        points: usize,
+        operation_time: u128,
+    ) -> Result<(), ServerError> {
+        if self.accounts.contains_key(&account_id) {
+            if let Some(account) = self.accounts.get(&account_id) {
+                if let Ok(mut account_guard) = account.write() {
+                    account_guard.update(points, operation_time)?
+                }
+            }
+        } else {
+            return Err(ServerError::AccountNotFound);
+        }
+        Ok(())
+    }
+    fn get_most_recent_update(&self) -> u128 {
+        let mut latest_update: u128 = 0;
+        for (id, account) in self.accounts.iter() {
+            if let Ok(guard) = account.read() {
+                let account_last_update = guard.last_updated_on();
+                if latest_update < account_last_update {
+                    latest_update = account_last_update;
+                }
+            }
+        }
+        latest_update
     }
 }
