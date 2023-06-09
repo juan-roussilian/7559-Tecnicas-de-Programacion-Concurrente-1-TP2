@@ -8,7 +8,6 @@ pub struct Account {
 }
 
 impl Account {
-
     pub fn new(id: usize, points: usize) -> Option<Self> {
         if let Ok(current_timestamp) = SystemTime::now().duration_since(UNIX_EPOCH) {
             Some(Account {
@@ -55,6 +54,10 @@ impl Account {
         points: usize,
         operation_time: Option<u128>,
     ) -> Result<(), ServerError> {
+        if points > self.points {
+            return Err(ServerError::NotEnoughPointsInAccount);
+        }
+
         match operation_time {
             Some(timestamp) => {
                 if self.last_updated_on < timestamp {
@@ -72,13 +75,13 @@ impl Account {
             }
         }
     }
-    pub fn cancel_reservation(&mut self){
+    pub fn cancel_reservation(&mut self) {
         self.is_reserved = false;
     }
-    pub fn reserve(&mut self) -> Result<(),ServerError> {
-        if self.is_reserved{
+    pub fn reserve(&mut self) -> Result<(), ServerError> {
+        if self.is_reserved {
             Err(ServerError::AccountIsReserved)
-        }else{
+        } else {
             self.is_reserved = true;
             Ok(())
         }
@@ -112,8 +115,7 @@ mod tests {
     }
 
     #[test]
-    fn account_points_after_substracting_10_points_to_account_with_20_points_should_return_10(
-    ) {
+    fn account_points_after_substracting_10_points_to_account_with_20_points_should_return_10() {
         if let Some(mut account) = Account::new(1, 20) {
             let correct_amount = account.points() - 10;
             account
@@ -126,13 +128,12 @@ mod tests {
     }
 
     #[test]
-    fn reserved_account_should_be_unreserved_after_substracting(
-    ) {
+    fn reserved_account_should_be_unreserved_after_substracting() {
         if let Some(mut account) = Account::new(1, 20) {
-            account.reserve();
+            let _result = account.reserve();
             account
-            .substract_points(10, None)
-            .expect("[Error]Failed to substract points");
+                .substract_points(10, None)
+                .expect("[Error]Failed to substract points");
             assert!(!account.is_reserved())
         } else {
             panic!("[Error] System time is somehow older than UNIX EPOCH")
@@ -160,7 +161,9 @@ mod tests {
     #[test]
     fn trying_to_reserve_reserved_account_should_return_error() {
         if let Some(mut account) = Account::new(1, 50) {
-            account.reserve().expect("[Err] Account was already reserved");
+            account
+                .reserve()
+                .expect("[Err] Account was already reserved");
             assert!(account.reserve().is_err());
         } else {
             panic!("[Error] System time is somehow older than UNIX EPOCH")
