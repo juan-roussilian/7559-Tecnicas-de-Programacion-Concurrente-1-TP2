@@ -26,7 +26,7 @@ pub type TokenData = HashMap<usize, Vec<CoffeeMakerRequest>>;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Diff {
-    pub last_update: Duration,
+    pub last_update: u128,
     pub changes: Vec<UpdatedAccount>,
 }
 
@@ -34,12 +34,12 @@ pub struct Diff {
 pub struct UpdatedAccount {
     pub id: usize,
     pub amount: usize,
-    pub last_updated_on: Duration,
+    pub last_updated_on: u128,
 }
 
-pub fn create_new_connection_message(sender_id: usize) -> ServerMessage {
+pub fn create_new_connection_message(sender_id: usize, most_recent_update: u128) -> ServerMessage {
     let diff = Diff {
-        last_update: Duration::from_millis(1000), // TODO obtener last update o comienzo de fecha 1970
+        last_update: most_recent_update,
         changes: Vec::new(),
     };
     create_server_message(sender_id, ServerMessageType::NewConnection(diff))
