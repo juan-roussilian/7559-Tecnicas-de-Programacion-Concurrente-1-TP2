@@ -14,6 +14,7 @@ pub enum ServerError {
     SerializationError,
     OperationIsOutdated,
     AccountIsReserved,
+    CoffeeServerStartError
 }
 
 impl<T> From<std::sync::PoisonError<T>> for ServerError {
