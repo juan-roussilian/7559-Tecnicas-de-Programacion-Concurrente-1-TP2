@@ -3,9 +3,6 @@ use std::sync::{Arc, Condvar};
 use lib::common_errors::ConnectionError;
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::Mutex;
-use std::thread;
-
-use crate::connection_status::ConnectionStatus;
 use lib::local_connection_messages::{
     CoffeeMakerRequest, CoffeeMakerResponse, MessageType, ResponseStatus,
 };
@@ -13,6 +10,8 @@ use lib::local_connection_messages::{
 use crate::errors::ServerError;
 use crate::orders_queue::OrdersQueue;
 use crate::server_messages::ServerMessage;
+use crate::memory_accounts_manager::MemoryAccountsManager;
+use crate::accounts_manager::AccountsManager;
 
 pub struct OrdersManager {
     orders: Arc<Mutex<OrdersQueue>>,
@@ -21,6 +20,7 @@ pub struct OrdersManager {
     to_next_sender: Sender<ServerMessage>,
     request_points_channel: Sender<(CoffeeMakerResponse, usize)>,
     result_take_points_channel: Receiver<CoffeeMakerRequest>,
+    accounts_manager: Arc<Mutex<MemoryAccountsManager>>
 }
 
 impl OrdersManager {
@@ -30,6 +30,7 @@ impl OrdersManager {
         to_next_sender: Sender<ServerMessage>,
         request_points_channel: Sender<(CoffeeMakerResponse, usize)>,
         result_take_points_channel: Receiver<CoffeeMakerRequest>,
+        accounts_manager: Arc<Mutex<MemoryAccountsManager>>
     ) -> OrdersManager {
         OrdersManager {
             orders,
@@ -37,30 +38,36 @@ impl OrdersManager {
             to_next_sender,
             request_points_channel,
             result_take_points_channel,
+            accounts_manager
         }
     }
 
     pub fn handle_orders(&mut self) -> Result<(), ServerError> {
+
         loop {
             let token = self.token_receiver.recv()?;
-            let mut orders = self.orders.lock()?;
-            if orders.is_empty() {
-                self.to_next_sender.send(token)?;
-                continue;
+            let adding_orders;
+            let request_points_orders;
+            {
+                let mut orders = self.orders.lock()?;
+                if orders.is_empty() {
+                    self.to_next_sender.send(token)?;
+                    continue;
+                }
+                adding_orders = orders.get_and_clear_adding_orders();
+                request_points_orders = orders.get_and_clear_request_points_orders();
             }
-            let adding_orders = orders.get_and_clear_adding_orders();
+            let mut accounts = self.accounts_manager.lock()?;
             for order in adding_orders {
-                // TODO agregar puntos a la db local
+                accounts.add_points(order.account_id, order.points, None);
                 // Agregar al token
             }
 
-            let request_points_orders = orders.get_and_clear_request_points_orders();
             let mut total_request_orders = 0;
             for order in request_points_orders {
-                // TODO ver si alcanzan los puntos (si hay 2 o mas sobre la misma cuenta ir acumulando en el gestor de puntos?)
-                // if alcanzan los puntos {
-                total_request_orders += 1;
-                //}
+                if let Ok(()) = accounts.request_points(order.0.account_id, order.0.points){
+                    total_request_orders += 1;
+                }
                 let result = self.request_points_channel.send((
                     CoffeeMakerResponse {
                         message_type: MessageType::RequestPoints,
@@ -79,10 +86,11 @@ impl OrdersManager {
                     return Err(ServerError::ChannelError);
                 }
                 let result = result.unwrap();
-                // TODO restar los puntos locales si corresponde
+                accounts.substract_points(result.account_id,result.points, None);
                 // Agregar al token
             }
             self.to_next_sender.send(token)?;
         }
+    
     }
 }
