@@ -23,6 +23,7 @@ use crate::{
         TO_NEXT_CONN_CHANNEL_TIMEOUT_IN_MS,
     },
     errors::ServerError,
+    memory_accounts_manager::MemoryAccountsManager,
     server_messages::{
         create_close_connection_message, create_new_connection_message, create_token_message, Diff,
         ServerMessage, ServerMessageType, TokenData,
@@ -51,11 +52,12 @@ pub struct NextConnection {
     peer_count: usize,
     next_conn_receiver: Receiver<ServerMessage>,
     connection_status: Arc<Mutex<ConnectionStatus>>,
-    connection: Option<Box<dyn ConnectionProtocol>>,
+    connection: Option<TcpConnection>,
     initial_connection: bool,
     next_id: usize,
     last_token: Option<ServerMessage>,
     have_token: Arc<Mutex<bool>>,
+    accounts_manager: Arc<Mutex<MemoryAccountsManager>>,
 }
 
 impl NextConnection {
@@ -65,6 +67,7 @@ impl NextConnection {
         next_conn_receiver: Receiver<ServerMessage>,
         connection_status: Arc<Mutex<ConnectionStatus>>,
         have_token: Arc<Mutex<bool>>,
+        accounts_manager: Arc<Mutex<MemoryAccountsManager>>,
     ) -> NextConnection {
         let mut initial_connection = false;
         if id == 0 {
@@ -80,6 +83,7 @@ impl NextConnection {
             next_id: id,
             last_token: None,
             have_token,
+            accounts_manager,
         }
     }
 
@@ -93,7 +97,7 @@ impl NextConnection {
             let result = TcpConnection::new_client_connection(id_to_address(id));
             if let Ok(connection) = result {
                 self.next_id = id;
-                self.connection = Some(Box::new(connection));
+                self.connection = Some(connection);
                 self.connection_status.lock()?.set_next_online();
                 if self.send_message(message.clone()).is_err() {
                     continue;
@@ -124,12 +128,13 @@ impl NextConnection {
         return Err(ServerError::ConnectionLost);
     }
 
-    fn try_to_connect_wait_if_offline(&mut self) {
+    fn try_to_connect_wait_if_offline(&mut self) -> Result<(), ServerError> {
         let mut wait = INITIAL_WAIT_IN_MS_FOR_CONNECTION_ATTEMPT;
-        let message = create_new_connection_message(self.id);
+        let most_recent_update = self.accounts_manager.lock()?.get_most_recent_update();
+        let message = create_new_connection_message(self.id, most_recent_update); // TODO obtener timestamp de cuenta con actualizacion last update 0 comienzo de fecha 1970
         loop {
             if self.connect_to_next(message.clone()).is_ok() {
-                return;
+                return Ok(());
             }
             sleep(Duration::from_millis(wait));
             wait *= 2;
@@ -142,7 +147,7 @@ impl NextConnection {
     pub fn handle_message_to_next(&mut self) -> Result<(), ServerError> {
         let timeout = Duration::from_millis(TO_NEXT_CONN_CHANNEL_TIMEOUT_IN_MS);
         let mut pending_sums = vec![];
-        self.try_to_connect_wait_if_offline();
+        self.try_to_connect_wait_if_offline()?;
         if self.id == 0 {
             if self.send_message(create_token_message(self.id)).is_err() {
                 error!("Failed to send initial token");
@@ -152,7 +157,7 @@ impl NextConnection {
         }
         loop {
             if !self.connection_status.lock()?.is_online() {
-                self.try_to_connect_wait_if_offline();
+                self.try_to_connect_wait_if_offline()?;
             }
             let result = self.next_conn_receiver.recv_timeout(timeout);
             if let Err(e) = result {
@@ -271,7 +276,7 @@ impl NextConnection {
                             let result = TcpConnection::new_client_connection(id_to_address(id));
                             if let Ok(connection) = result {
                                 self.next_id = id;
-                                self.connection = Some(Box::new(connection));
+                                self.connection = Some(connection);
                                 self.connection_status.lock()?.set_next_online();
                                 if self.send_message(message.clone()).is_ok() {
                                     break;
@@ -318,13 +323,10 @@ impl NextConnection {
         // TODO llamar al accounts manager para que nos de o agregue al diff todo lo mas nuevo
     }
 
-    fn connect_to_new_conn(
-        &mut self,
-        sender_id: usize,
-    ) -> Result<Box<dyn ConnectionProtocol>, ServerError> {
+    fn connect_to_new_conn(&mut self, sender_id: usize) -> Result<TcpConnection, ServerError> {
         let result = TcpConnection::new_client_connection(id_to_address(sender_id));
         if let Ok(connection) = result {
-            return Ok(Box::new(connection));
+            return Ok(connection);
         }
         Err(ServerError::ConnectionLost)
     }

@@ -10,7 +10,9 @@ use lib::{
 };
 
 use crate::{
+    accounts_manager::AccountsManager,
     connection_status::ConnectionStatus,
+    memory_accounts_manager::MemoryAccountsManager,
     server_messages::{
         create_maybe_we_lost_the_token_message, Diff, ServerMessage, ServerMessageType, TokenData,
     },
@@ -24,6 +26,7 @@ pub struct PrevConnection {
     listening_to_id: Option<usize>,
     my_id: usize,
     have_token: Arc<Mutex<bool>>,
+    accounts_manager: Arc<Mutex<MemoryAccountsManager>>,
 }
 
 impl PrevConnection {
@@ -34,6 +37,7 @@ impl PrevConnection {
         connection_status: Arc<Mutex<ConnectionStatus>>,
         my_id: usize,
         have_token: Arc<Mutex<bool>>,
+        accounts_manager: Arc<Mutex<MemoryAccountsManager>>,
     ) -> PrevConnection {
         PrevConnection {
             connection,
@@ -43,6 +47,7 @@ impl PrevConnection {
             listening_to_id: None,
             my_id,
             have_token,
+            accounts_manager,
         }
     }
 
@@ -107,7 +112,9 @@ impl PrevConnection {
 
     fn update_myself_by_diff(&mut self, diff: &Diff) {
         for update in &diff.changes {
-            // update accounts
+            if let Ok(guard) = self.accounts_manager.lock() {
+                guard.update(update.id, update.amount, update.last_updated_on);
+            }
         }
     }
 
@@ -116,9 +123,21 @@ impl PrevConnection {
         for changes in data.values() {
             for update in changes {
                 if update.message_type == MessageType::AddPoints {
-                    // update account
+                    if let Ok(mut guard) = self.accounts_manager.lock() {
+                        guard.add_points(
+                            update.account_id,
+                            update.points,
+                            None, /* TODO add ts, it should not be None here*/
+                        );
+                    }
                 } else if update.message_type == MessageType::TakePoints {
-                    // update account
+                    if let Ok(mut guard) = self.accounts_manager.lock() {
+                        guard.substract_points(
+                            update.account_id,
+                            update.points,
+                            None, /* TODO add ts, it should not be None here*/
+                        );
+                    }
                 }
             }
         }
