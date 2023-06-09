@@ -1,4 +1,5 @@
 use std::{
+    collections::HashMap,
     sync::{
         mpsc::{self, Sender},
         Arc, Condvar, Mutex,
@@ -11,11 +12,14 @@ use lib::common_errors::ConnectionError;
 use log::error;
 
 use crate::{
+    accounts_manager::AccountsManager,
     address_resolver::id_to_server_port,
+    coffee_maker_server::CoffeeMakerServer,
     coffee_message_dispatcher::CoffeeMessageDispatcher,
     connection_server::{ConnectionServer, TcpConnectionServer},
-    connection_status::{self, ConnectionStatus},
+    connection_status::ConnectionStatus,
     errors::ServerError,
+    memory_accounts_manager::MemoryAccountsManager,
     next_connection::NextConnection,
     offline_substract_orders_cleaner::clean_substract_orders_if_offline,
     orders_manager::OrdersManager,
@@ -30,10 +34,13 @@ pub struct LocalServer {
     connection_status: Arc<Mutex<ConnectionStatus>>,
     to_next_conn_sender: Sender<ServerMessage>,
     to_orders_manager_sender: Sender<ServerMessage>,
-    next_connection: Arc<NextConnection>,
-    orders_manager: Arc<OrdersManager>,
-    coffee_message_dispatcher: Arc<CoffeeMessageDispatcher>,
     have_token: Arc<Mutex<bool>>,
+    accounts_manager: Arc<Mutex<MemoryAccountsManager>>,
+    next_conn_handle: JoinHandle<Result<(), ServerError>>,
+    orders_manager_handle: JoinHandle<Result<(), ServerError>>,
+    dispatcher_handle: JoinHandle<Result<(), ServerError>>,
+    cleaner_handler: JoinHandle<Result<(), ServerError>>,
+    coffee_handle: JoinHandle<Result<(), ServerError>>,
 }
 
 impl LocalServer {
@@ -49,13 +56,6 @@ impl LocalServer {
 
         let connection_status = Arc::new(Mutex::new(ConnectionStatus::new()));
         let have_token = Arc::new(Mutex::new(false));
-        let next_connection = Arc::new(NextConnection::new(
-            id,
-            peer_count,
-            next_conn_receiver,
-            connection_status.clone(),
-            have_token.clone(),
-        ));
 
         let orders = Arc::new(Mutex::new(OrdersQueue::new()));
         let orders_clone = orders.clone();
@@ -63,6 +63,53 @@ impl LocalServer {
         let request_points_channel_clone = request_points_result_sender.clone();
         let connected_cond = Arc::new(Condvar::new());
         let connected_cond_clone = connected_cond.clone();
+
+        let accounts_manager = Arc::new(Mutex::new(MemoryAccountsManager::new()));
+
+        let orders_manager = OrdersManager::new(
+            orders.clone(),
+            orders_manager_receiver,
+            to_next_conn_sender.clone(),
+            request_points_result_sender,
+            result_points_receiver,
+            accounts_manager.clone(),
+        );
+
+        let machine_response_senders = Arc::new(Mutex::new(HashMap::new()));
+        let coffee_message_dispatcher = CoffeeMessageDispatcher::new(
+            connection_status.clone(),
+            orders,
+            orders_from_coffee_receiver,
+            machine_response_senders.clone(),
+        );
+
+        let next_connection = NextConnection::new(
+            id,
+            peer_count,
+            next_conn_receiver,
+            connection_status.clone(),
+            have_token.clone(),
+            accounts_manager.clone(),
+        );
+
+        let coffee_server =
+            CoffeeMakerServer::new(id, orders_from_coffee_sender, machine_response_senders);
+        if coffee_server.is_err() {
+            error!("Error booting up coffee maker server, stopping...");
+            return Err(ServerError::CoffeeServerStartError);
+        }
+        let mut coffee_server = coffee_server.unwrap();
+        let coffee_handle = thread::spawn(move || coffee_server.listen());
+
+        let dispatcher_handle = thread::spawn(move || {
+            coffee_message_dispatcher.dispatch_coffee_requests(
+                result_points_sender,
+                request_points_result_sender,
+                request_points_result_receiver,
+            )
+        });
+        let orders_manager_handle = thread::spawn(move || orders_manager.handle_orders());
+
         let cleaner_handler = thread::spawn(move || {
             clean_substract_orders_if_offline(
                 orders_clone,
@@ -72,34 +119,32 @@ impl LocalServer {
             )
         });
 
-        let orders_manager = Arc::new(OrdersManager::new(
-            orders.clone(),
-            orders_manager_receiver,
-            to_next_conn_sender.clone(),
-            request_points_result_sender,
-            result_points_receiver,
-        ));
-
-        let coffee_message_dispatcher = Arc::new(CoffeeMessageDispatcher::new(
-            connection_status.clone(),
-            orders,
-            orders_from_coffee_receiver,
-        ));
+        let next_conn_handle = thread::spawn(move || next_connection.handle_message_to_next());
 
         Ok(LocalServer {
             listener,
             id,
             connection_status,
-            next_connection,
+            next_conn_handle,
             to_next_conn_sender,
             to_orders_manager_sender,
-            orders_manager,
-            coffee_message_dispatcher,
+            orders_manager_handle,
+            dispatcher_handle,
             have_token,
+            accounts_manager,
+            cleaner_handler,
+            coffee_handle,
         })
     }
 
-    pub fn listen(&mut self) -> Result<(), ServerError> {
+    pub fn start_server(&mut self) {
+        self.listen();
+        self.cleaner_handler.join();
+        self.coffee_handle.join();
+        self.dispatcher_handle.join();
+    }
+
+    fn listen(&mut self) -> Result<(), ServerError> {
         let mut curr_prev_handle: Option<JoinHandle<Result<(), ConnectionError>>> = None;
         loop {
             let new_connection = task::block_on(self.listener.listen())?;
@@ -112,6 +157,7 @@ impl LocalServer {
                 self.connection_status.clone(),
                 self.id,
                 self.have_token.clone(),
+                self.accounts_manager.clone(),
             );
 
             let new_prev_handle = thread::spawn(move || previous.listen());

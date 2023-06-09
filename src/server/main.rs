@@ -1,8 +1,8 @@
 use std::env;
 
-use coffee_maker_server::CoffeeMakerServer;
 use errors::ServerError;
 use lib::logger::set_logger_config;
+use local_server::LocalServer;
 use log::error;
 use server_args::ServerArgs;
 
@@ -54,10 +54,11 @@ fn main() {
     }
     let server_args = server_args_res.unwrap();
 
-    let coffee_server = CoffeeMakerServer::new(server_args.id);
-    if coffee_server.is_err() {
-        error!("Error booting up coffee maker server, stopping...");
+    let result = LocalServer::new(server_args.id, server_args.peer_server_count);
+    if result.is_err() {
+        error!("Error booting up local server, stopping...");
         return;
     }
-    let mut coffee_server = coffee_server.unwrap();
+    let mut server = result.unwrap();
+    server.start_server();
 }
