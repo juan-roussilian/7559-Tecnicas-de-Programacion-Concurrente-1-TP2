@@ -12,6 +12,8 @@ pub enum ServerError {
     NotEnoughPointsInAccount,
     ConnectionLost,
     SerializationError,
+    OperationIsOutdated,
+    AccountIsReserved,
 }
 
 impl<T> From<std::sync::PoisonError<T>> for ServerError {
