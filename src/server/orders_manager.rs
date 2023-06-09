@@ -46,6 +46,7 @@ impl OrdersManager {
     pub fn handle_orders(&mut self) -> Result<(), ServerError> {
         loop {
             let token = self.token_receiver.recv()?;
+            
             let adding_orders;
             let request_points_orders;
             {
@@ -95,6 +96,7 @@ impl OrdersManager {
                 let timestamp = SystemTime::now().duration_since(UNIX_EPOCH)?.as_nanos();
                 accounts.substract_points(result.account_id, result.points, Some(timestamp));
                 // Agregar al token
+                
             }
             self.to_next_sender.send(token)?;
         }
