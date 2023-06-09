@@ -42,6 +42,7 @@ impl Account {
             Some(timestamp) => {
                 if self.last_updated_on < timestamp {
                     self.points += points;
+                    self.last_updated_on = timestamp;
                     Ok(())
                 } else {
                     Err(ServerError::OperationIsOutdated)
@@ -66,6 +67,7 @@ impl Account {
             Some(timestamp) => {
                 if self.last_updated_on < timestamp {
                     self.points -= points;
+                    self.last_updated_on = timestamp;
                     self.is_reserved = false;
                     return Ok(());
                 }

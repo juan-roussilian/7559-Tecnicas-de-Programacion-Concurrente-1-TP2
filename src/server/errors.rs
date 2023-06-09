@@ -1,3 +1,5 @@
+
+use std::time::SystemTimeError;
 use log::error;
 
 #[derive(Debug)]
@@ -14,7 +16,8 @@ pub enum ServerError {
     SerializationError,
     OperationIsOutdated,
     AccountIsReserved,
-    CoffeeServerStartError
+    CoffeeServerStartError,
+    TimestampError
 }
 
 impl<T> From<std::sync::PoisonError<T>> for ServerError {
@@ -41,5 +44,12 @@ impl From<Box<bincode::ErrorKind>> for ServerError {
     fn from(_: Box<bincode::ErrorKind>) -> Self {
         error!("Error serializing message");
         ServerError::SerializationError
+    }
+}
+
+impl From<SystemTimeError> for ServerError {
+    fn from(_: SystemTimeError) -> Self {
+        error!("Error getting the timestamp");
+        ServerError::TimestampError
     }
 }
