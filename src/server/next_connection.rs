@@ -19,11 +19,12 @@ use crate::{
     address_resolver::id_to_address,
     connection_status::ConnectionStatus,
     constants::{
-        INITIAL_WAIT_IN_MS_FOR_CONNECTION_ATTEMPT, MAX_WAIT_IN_MS_FOR_CONNECTION_ATTEMPT,
-        TO_NEXT_CONN_CHANNEL_TIMEOUT_IN_MS,
+        CLEAN_ORDERS_TIME_IN_MS, INITIAL_WAIT_IN_MS_FOR_CONNECTION_ATTEMPT,
+        MAX_WAIT_IN_MS_FOR_CONNECTION_ATTEMPT, TO_NEXT_CONN_CHANNEL_TIMEOUT_IN_MS,
     },
     errors::ServerError,
     memory_accounts_manager::MemoryAccountsManager,
+    offline_substract_orders_cleaner::SubstractOrdersCleaner,
     server_messages::{
         create_close_connection_message, create_new_connection_message, create_token_message, Diff,
         ServerMessage, ServerMessageType,
@@ -58,6 +59,7 @@ pub struct NextConnection {
     last_token: Option<ServerMessage>,
     have_token: Arc<Mutex<bool>>,
     accounts_manager: Arc<Mutex<MemoryAccountsManager>>,
+    offline_cleaner: SubstractOrdersCleaner,
 }
 
 impl NextConnection {
@@ -68,6 +70,7 @@ impl NextConnection {
         connection_status: Arc<Mutex<ConnectionStatus>>,
         have_token: Arc<Mutex<bool>>,
         accounts_manager: Arc<Mutex<MemoryAccountsManager>>,
+        offline_cleaner: SubstractOrdersCleaner,
     ) -> NextConnection {
         let mut initial_connection = false;
         if id == 0 {
@@ -84,6 +87,7 @@ impl NextConnection {
             last_token: None,
             have_token,
             accounts_manager,
+            offline_cleaner,
         }
     }
 
@@ -129,6 +133,7 @@ impl NextConnection {
     }
 
     fn try_to_connect_wait_if_offline(&mut self) -> Result<(), ServerError> {
+        let mut cleaned_orders = false;
         let mut wait = INITIAL_WAIT_IN_MS_FOR_CONNECTION_ATTEMPT;
         let most_recent_update = self.accounts_manager.lock()?.get_most_recent_update();
         let message = create_new_connection_message(self.id, most_recent_update);
@@ -140,6 +145,10 @@ impl NextConnection {
             wait *= 2;
             if wait >= MAX_WAIT_IN_MS_FOR_CONNECTION_ATTEMPT {
                 wait = INITIAL_WAIT_IN_MS_FOR_CONNECTION_ATTEMPT;
+            }
+            if wait >= CLEAN_ORDERS_TIME_IN_MS && !cleaned_orders {
+                self.offline_cleaner.clean_substract_orders_if_offline()?;
+                cleaned_orders = false;
             }
         }
     }
@@ -185,10 +194,6 @@ impl NextConnection {
             let mut message = result.unwrap();
             match &mut message.message_type {
                 ServerMessageType::NewConnection(diff) => {
-                    debug!(
-                        "[SENDER {}] Redirecting new connection message from {} to {}",
-                        self.id, message.sender_id, self.next_id
-                    );
                     if is_in_between(self.id, message.sender_id, self.next_id) {
                         self.add_data_to_diff(diff);
                         let result = self.connect_to_new_conn(message.sender_id);

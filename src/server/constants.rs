@@ -15,3 +15,7 @@ pub const COFFEE_RESULT_TIMEOUT_IN_MS: u64 = 21000;
 /// Indica el tiempo que se espera luego de haber recibido un timeout por la espera del resultado del cafe con puntos.
 /// El valor en este caso puede ser menor, ya se espero lo que deberia de tardar un cafe
 pub const POST_INITIAL_TIMEOUT_COFFEE_RESULT_IN_MS: u64 = 500;
+
+/// Indica el tiempo de espera antes de limpiar las ordenes que son de resta si se esta offline.
+/// Se tiene una espera antes de limpiarlas para dar tiempo en caso de una perdida muy temporal de conexion
+pub const CLEAN_ORDERS_TIME_IN_MS: u64 = 4000;

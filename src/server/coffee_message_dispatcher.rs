@@ -40,7 +40,7 @@ impl CoffeeMessageDispatcher {
         orders_response_receiver: Receiver<(CoffeeMakerResponse, usize)>,
     ) -> Result<(), ServerError> {
         let senders_clone = self.machine_response_senders.clone();
-        let handle = thread::spawn(move || {
+        let _handle = thread::spawn(move || {
             Self::send_coffee_responses(senders_clone, orders_response_receiver);
         });
 
