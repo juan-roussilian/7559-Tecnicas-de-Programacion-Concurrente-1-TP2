@@ -276,6 +276,7 @@ impl NextConnection {
                                 "[SENDER {}] We managed to send the copy of the token to {}",
                                 self.id, self.next_id
                             );
+                            continue;
                         }
                     }
                     message.passed_by.insert(self.id);
