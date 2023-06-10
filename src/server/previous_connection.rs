@@ -58,14 +58,20 @@ impl PrevConnection {
         loop {
             let encoded = task::block_on(self.connection.recv());
             if let Err(e) = encoded {
-                if e == ConnectionError::ConnectionLost {
-                    self.connection_status.lock()?.set_prev_offline();
+                //if e == ConnectionError::ConnectionLost { // TODO revisar
+                warn!("[PREVIOUS CONNECTION] Previous connection died");
+                self.connection_status.lock()?.set_prev_offline();
+                if !*self.have_token.lock()? {
+                    warn!(
+                        "[PREVIOUS CONNECTION] I don't have the token, maybe we lost the token, sending message"
+                    );
                     let to_id = self.listening_to_id.unwrap_or(self.my_id);
                     self.to_next_sender
                         .send(create_maybe_we_lost_the_token_message(self.my_id, to_id))?;
-                    return Err(ConnectionError::ConnectionLost);
                 }
-                return Ok(()); // Closed connection
+                return Err(ConnectionError::ConnectionLost);
+                //}
+                //return Ok(()); // Closed connection
             }
 
             let mut encoded = encoded.unwrap();
@@ -119,7 +125,7 @@ impl PrevConnection {
                         info!("[PREVIOUS CONNECTION] I have the token, we did't lost it");
                         continue;
                     }
-                    if message.passed_by.contains(&self.my_id) {
+                    if message.sender_id == self.my_id || message.passed_by.contains(&self.my_id) {
                         debug!(
                             "[PREVIOUS CONNECTION] I have already seen this message, dropping..."
                         );

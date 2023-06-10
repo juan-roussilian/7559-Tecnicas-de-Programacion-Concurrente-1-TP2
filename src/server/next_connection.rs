@@ -219,9 +219,6 @@ impl NextConnection {
                 ServerMessageType::Token(token_data) => {
                     let mut token_data_copy = token_data.clone();
 
-                    // marcamos en un mutex que ya no tenemos el token
-                    *self.have_token.lock()? = false;
-
                     if !pending_sums.is_empty() {
                         token_data
                             .entry(self.id)
@@ -245,9 +242,13 @@ impl NextConnection {
                                     .collect::<Vec<_>>();
                                 pending_sums.append(&mut sums);
                             }
+                            // marcamos en un mutex que ya no tenemos el token, estamos sin conexion
+                            *self.have_token.lock()? = false;
                             continue;
                         }
                     }
+                    // marcamos en un mutex que ya no tenemos el token
+                    *self.have_token.lock()? = false;
                     // si no fallan todas las reconexiones (ej logramos conectarnos al siguiente del siguiente)
                     // le mandamos el token, no se perdio
                     self.last_token = token_backup;
@@ -259,6 +260,11 @@ impl NextConnection {
                     // SOLO si es al que apuntamos, que nos llegue este mensaje es que se perdio el token
                     // (llego al final de la carrera - no estaba el token circulando porque se perdio)
                     // nos conectamos con el siguiente y mandarle mensaje token guardado
+                    if *self.have_token.lock()? {
+                        info!("[SENDER {}] I have the token, we did't lost it", self.id);
+                        continue;
+                    }
+
                     if self.next_id == lost_id {
                         warn!(
                             "[SENDER {}] We lost the token, sending copy to next possible connection",

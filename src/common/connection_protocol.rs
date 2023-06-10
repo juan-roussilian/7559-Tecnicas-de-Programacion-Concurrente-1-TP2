@@ -1,3 +1,5 @@
+use std::net::SocketAddr;
+
 use async_std::{
     io::{prelude::BufReadExt, BufReader, WriteExt},
     net::TcpStream,
@@ -17,6 +19,7 @@ pub trait ConnectionProtocol {
 pub struct TcpConnection {
     writer: TcpStream,
     reader: BufReader<TcpStream>,
+    addr: SocketAddr,
 }
 
 impl TcpConnection {
@@ -37,16 +40,18 @@ impl TcpConnection {
                 );
                 Ok(TcpConnection {
                     writer: stream.clone(),
+                    addr: stream.peer_addr()?,
                     reader: BufReader::new(stream),
                 })
             }
         }
     }
 
-    pub fn new_server_connection(stream: TcpStream) -> TcpConnection {
+    pub fn new_server_connection(stream: TcpStream, addr: SocketAddr) -> TcpConnection {
         TcpConnection {
             writer: stream.clone(),
             reader: BufReader::new(stream),
+            addr,
         }
     }
 }
@@ -58,7 +63,9 @@ impl ConnectionProtocol for TcpConnection {
             Ok(()) => Ok(()),
             Err(error) => {
                 error!(
-                    "[TCP CONNECTION] Error sending message to server, {}",
+                    "[TCP CONNECTION] Error sending message to server {} {}, {}",
+                    self.addr.ip(),
+                    self.addr.port(),
                     error
                 );
                 Err(ConnectionError::ConnectionLost)
@@ -70,14 +77,20 @@ impl ConnectionProtocol for TcpConnection {
         match self.reader.read_until(b';', &mut buffer).await {
             Ok(read) => {
                 if read == 0 {
-                    info!("[TCP CONNECTION] Closed connection");
+                    info!(
+                        "[TCP CONNECTION] Closed connection {} {}",
+                        self.addr.ip(),
+                        self.addr.port()
+                    );
                     return Err(ConnectionError::ConnectionClosed);
                 }
                 Ok(buffer)
             }
             Err(error) => {
                 error!(
-                    "[TCP CONNECTION] Error receiving message from server, {}",
+                    "[TCP CONNECTION] Error receiving message from server {} {}, {}",
+                    self.addr.ip(),
+                    self.addr.port(),
                     error
                 );
                 Err(ConnectionError::ConnectionLost)

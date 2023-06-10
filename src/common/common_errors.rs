@@ -27,3 +27,9 @@ impl<T> From<std::sync::mpsc::SendError<T>> for ConnectionError {
         ConnectionError::UnexpectedError
     }
 }
+
+impl From<std::io::Error> for ConnectionError {
+    fn from(_: std::io::Error) -> Self {
+        ConnectionError::ConnectionLost
+    }
+}

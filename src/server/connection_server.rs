@@ -39,7 +39,7 @@ impl ConnectionServer for TcpConnectionServer {
                     addr.ip(),
                     addr.port()
                 );
-                let conn = TcpConnection::new_server_connection(tcp_stream);
+                let conn = TcpConnection::new_server_connection(tcp_stream, addr);
                 Ok(Box::new(conn))
             }
             Err(e) => {
