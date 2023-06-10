@@ -36,3 +36,43 @@ impl SubstractOrdersCleaner {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::{sync::mpsc, time::Duration};
+
+    use lib::local_connection_messages::CoffeeMakerRequest;
+
+    use super::*;
+
+    #[test]
+    fn should_clean_the_saved_substract_orders() {
+        let orders = Arc::new(Mutex::new(OrdersQueue::new()));
+        let (request_points_result_sender, request_points_result_receiver) = mpsc::channel();
+
+        let cleaner = SubstractOrdersCleaner::new(orders.clone(), request_points_result_sender);
+        {
+            let mut queue = orders.lock().expect("Lock error in test");
+            queue.add(
+                CoffeeMakerRequest {
+                    message_type: MessageType::RequestPoints,
+                    account_id: 0,
+                    points: 10,
+                },
+                0,
+            );
+            queue.add(
+                CoffeeMakerRequest {
+                    message_type: MessageType::RequestPoints,
+                    account_id: 0,
+                    points: 10,
+                },
+                0,
+            );
+        }
+        assert!(cleaner.clean_substract_orders_if_offline().is_ok());
+        assert!(orders.lock().expect("Lock error in test").is_empty());
+        assert!(request_points_result_receiver.try_recv().is_ok());
+        assert!(request_points_result_receiver.try_recv().is_ok());
+    }
+}
