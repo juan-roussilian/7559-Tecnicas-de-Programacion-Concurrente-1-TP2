@@ -107,7 +107,6 @@ impl PrevConnection {
                     return Ok(());
                 }
                 ServerMessageType::Token(data) => {
-                    thread::sleep(Duration::from_millis(100));
                     self.set_listening_to_id(&message.passed_by, message.sender_id);
                     debug!(
                         "[PREVIOUS CONNECTION] Received the token from {}",
