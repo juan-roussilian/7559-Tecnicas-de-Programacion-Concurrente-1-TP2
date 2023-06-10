@@ -16,12 +16,13 @@ pub struct TcpConnectionServer {
 }
 
 impl TcpConnectionServer {
-    pub fn new() -> Result<TcpConnectionServer, ServerError> {
-        let listener = task::block_on(TcpListener::bind("127.0.0.1:8888"));
-        if listener.is_err() {
-            error!("[COFFEE MAKER SERVER] Error binding to port");
+    pub fn new(port: &str) -> Result<TcpConnectionServer, ServerError> {
+        let listener = task::block_on(TcpListener::bind("127.0.0.1:".to_owned() + port));
+        if let Err(e) = listener {
+            error!("[SERVER] Error binding to port {}, {}", port, e);
             return Err(ServerError::ListenerError);
         }
+        info!("[SERVER] Bind to port successful {}", port);
         let listener = listener.unwrap();
         Ok(TcpConnectionServer { listener })
     }
@@ -34,8 +35,9 @@ impl ConnectionServer for TcpConnectionServer {
         match result {
             Ok((tcp_stream, addr)) => {
                 info!(
-                    "[COFFEE MAKER SERVER] Accepted connection from {}",
-                    addr.ip()
+                    "[SERVER] Accepted connection from {} {}",
+                    addr.ip(),
+                    addr.port()
                 );
                 let conn = TcpConnection::new_server_connection(tcp_stream);
                 Ok(Box::new(conn))

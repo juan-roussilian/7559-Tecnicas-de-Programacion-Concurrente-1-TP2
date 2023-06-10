@@ -20,8 +20,7 @@ pub struct TcpConnection {
 }
 
 impl TcpConnection {
-    pub fn new_client_connection(server_addr: String) -> Result<TcpConnection, ConnectionError> {
-        // TODO revisar
+    pub fn new_client_connection(server_addr: &String) -> Result<TcpConnection, ConnectionError> {
         let result = task::block_on(TcpStream::connect(&server_addr));
         match result {
             Err(e) => {
@@ -71,7 +70,7 @@ impl ConnectionProtocol for TcpConnection {
         match self.reader.read_until(b';', &mut buffer).await {
             Ok(read) => {
                 if read == 0 {
-                    info!("[TCP CONNECTION] Closed connection with a coffee maker");
+                    info!("[TCP CONNECTION] Closed connection");
                     return Err(ConnectionError::ConnectionClosed);
                 }
                 Ok(buffer)

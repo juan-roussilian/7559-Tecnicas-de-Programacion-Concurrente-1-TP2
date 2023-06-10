@@ -20,14 +20,14 @@ use log::{debug, error, info};
 pub struct OrdersReader {
     file_name: String,
     file: Option<Arc<Mutex<BufReader<File>>>>,
-    coffee_maker_addr: Option<Addr<CoffeeMaker>>,
+    coffee_maker_addr: Option<Vec<Addr<CoffeeMaker>>>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
 enum OrdersReaderState {
-    Reading(Order),
+    Reading(Order, usize),
     ErrorReading,
-    ParserErrorRetry,
+    ParserErrorRetry(usize),
     Finished,
 }
 
@@ -40,8 +40,8 @@ impl OrdersReader {
         }
     }
 
-    fn try_to_read_next_line(&self, ctx: &mut Context<OrdersReader>) {
-        if let Err(e) = ctx.address().try_send(ReadAnOrder) {
+    fn try_to_read_next_line(&self, ctx: &mut Context<OrdersReader>, id: usize) {
+        if let Err(e) = ctx.address().try_send(ReadAnOrder(id)) {
             error!(
                 "[READER] Error sending message to read next line {}, stopping...",
                 e
@@ -50,14 +50,14 @@ impl OrdersReader {
         }
     }
 
-    fn send_message<ToCoffeeMakerMessage>(&self, msg: ToCoffeeMakerMessage)
+    fn send_message<ToCoffeeMakerMessage>(&self, msg: ToCoffeeMakerMessage, id: usize)
     where
         CoffeeMaker: Handler<ToCoffeeMakerMessage>,
         ToCoffeeMakerMessage: Message + Send + 'static,
         ToCoffeeMakerMessage::Result: Send,
     {
         if let Some(addr) = self.coffee_maker_addr.as_ref() {
-            if let Err(e) = addr.try_send(msg) {
+            if let Err(e) = addr[id].try_send(msg) {
                 error!(
                     "[READER] Error sending message to coffee maker {}, stopping...",
                     e
@@ -67,6 +67,22 @@ impl OrdersReader {
             return;
         }
         error!("[READER] Address is not present, stopping...");
+        System::current().stop();
+    }
+
+    fn send_all<ToCoffeeMakerMessage>(&self, msg: ToCoffeeMakerMessage)
+    where
+        CoffeeMaker: Handler<ToCoffeeMakerMessage>,
+        ToCoffeeMakerMessage: Message + Send + 'static + Clone,
+        ToCoffeeMakerMessage::Result: Send,
+    {
+        if let Some(addresses) = self.coffee_maker_addr.as_ref() {
+            for id in 0..addresses.len() {
+                self.send_message(msg.clone(), id);
+            }
+            return;
+        }
+        error!("[READER] Addresses are not present, stopping...");
         System::current().stop();
     }
 }
@@ -92,11 +108,11 @@ impl Handler<OpenFile> for OrdersReader {
 impl Handler<ReadAnOrder> for OrdersReader {
     type Result = ResponseActFuture<Self, ()>;
 
-    fn handle(&mut self, _msg: ReadAnOrder, _ctx: &mut Context<Self>) -> Self::Result {
+    fn handle(&mut self, msg: ReadAnOrder, _ctx: &mut Context<Self>) -> Self::Result {
         debug!("[READER] Received message to read an order from the file");
         match self.file.as_ref() {
             Some(file) => Box::pin(
-                read_line_from_file(file.clone())
+                read_line_from_file(file.clone(), msg.0)
                     .into_actor(self)
                     .map(send_message_depending_on_result),
             ),
@@ -113,7 +129,10 @@ impl Handler<ReadAnOrder> for OrdersReader {
     }
 }
 
-async fn read_line_from_file(file: Arc<Mutex<BufReader<File>>>) -> OrdersReaderState {
+async fn read_line_from_file(
+    file: Arc<Mutex<BufReader<File>>>,
+    coffee_id: usize,
+) -> OrdersReaderState {
     let mut file = file.lock().await;
     let mut line = String::new();
     let result = file.read_line(&mut line).await;
@@ -130,10 +149,10 @@ async fn read_line_from_file(file: Arc<Mutex<BufReader<File>>>) -> OrdersReaderS
     let conversion_result = Order::from_line(&line);
     if let Err(e) = conversion_result {
         error!("[READER] Error parsing order from file {:?}", e);
-        return OrdersReaderState::ParserErrorRetry;
+        return OrdersReaderState::ParserErrorRetry(coffee_id);
     }
 
-    OrdersReaderState::Reading(conversion_result.unwrap())
+    OrdersReaderState::Reading(conversion_result.unwrap(), coffee_id)
 }
 
 fn handle_opened_file(
@@ -143,12 +162,13 @@ fn handle_opened_file(
 ) {
     if result.is_err() {
         error!("[READER] Error opening file: {}", me.file_name);
-        me.send_message(ErrorOpeningFile);
+        me.send_all(ErrorOpeningFile);
+        System::current().stop();
         return;
     }
     info!("[READER] Opened file: {}", me.file_name);
     me.file = Some(Arc::new(Mutex::new(BufReader::new(result.unwrap()))));
-    me.send_message(OpenedFile);
+    me.send_all(OpenedFile);
 }
 
 fn send_message_depending_on_result(
@@ -157,15 +177,16 @@ fn send_message_depending_on_result(
     ctx: &mut Context<OrdersReader>,
 ) {
     match result {
-        OrdersReaderState::ParserErrorRetry => {
-            me.try_to_read_next_line(ctx);
+        OrdersReaderState::ParserErrorRetry(id) => {
+            me.try_to_read_next_line(ctx, id);
         }
-        OrdersReaderState::Reading(order) => {
-            me.send_message(ProcessOrder(order));
+        OrdersReaderState::Reading(order, id) => {
+            me.send_message(ProcessOrder(order), id);
         }
         _ => {
-            me.send_message(FinishedFile);
+            me.send_all(FinishedFile);
             ctx.stop();
+            System::current().stop();
         }
     }
 }
@@ -184,9 +205,9 @@ mod tests {
         }
         let file = file.unwrap();
         let file = Arc::new(Mutex::new(BufReader::new(file)));
-        let result = read_line_from_file(file).await;
+        let result = read_line_from_file(file, 0).await;
         match result {
-            OrdersReaderState::Reading(order) => assert_eq!(
+            OrdersReaderState::Reading(order, 0) => assert_eq!(
                 Order {
                     consumption_type: ConsumptionType::Cash,
                     consumption: 500,
@@ -206,7 +227,7 @@ mod tests {
         }
         let file = file.unwrap();
         let file = Arc::new(Mutex::new(BufReader::new(file)));
-        let result = read_line_from_file(file).await;
+        let result = read_line_from_file(file, 0).await;
         assert_eq!(OrdersReaderState::Finished, result);
     }
 
@@ -218,16 +239,16 @@ mod tests {
         }
         let file = file.unwrap();
         let file = Arc::new(Mutex::new(BufReader::new(file)));
-        let result = read_line_from_file(file.clone()).await;
-        assert_eq!(OrdersReaderState::ParserErrorRetry, result);
+        let result = read_line_from_file(file.clone(), 0).await;
+        assert_eq!(OrdersReaderState::ParserErrorRetry(0), result);
 
-        let result = read_line_from_file(file.clone()).await;
-        assert_eq!(OrdersReaderState::ParserErrorRetry, result);
+        let result = read_line_from_file(file.clone(), 0).await;
+        assert_eq!(OrdersReaderState::ParserErrorRetry(0), result);
 
-        let result = read_line_from_file(file.clone()).await;
-        assert_eq!(OrdersReaderState::ParserErrorRetry, result);
+        let result = read_line_from_file(file.clone(), 0).await;
+        assert_eq!(OrdersReaderState::ParserErrorRetry(0), result);
 
-        let result = read_line_from_file(file).await;
+        let result = read_line_from_file(file, 0).await;
         assert_eq!(OrdersReaderState::Finished, result);
     }
 }

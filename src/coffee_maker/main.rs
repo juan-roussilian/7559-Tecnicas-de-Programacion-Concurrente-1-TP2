@@ -18,7 +18,7 @@ use actix_rt::System;
 use actor_messages::OpenFile;
 use coffee_args::CoffeeArgs;
 use coffee_maker::CoffeeMaker;
-use constants::{DEFAULT_ORDERS_FILE, SUCCESS_CHANCE};
+use constants::{DEFAULT_ORDERS_FILE, DISPENSERS, SUCCESS_CHANCE};
 use errors::CoffeeMakerError;
 use lib::logger::set_logger_config;
 use log::error;
@@ -55,18 +55,26 @@ pub fn main() {
     system.block_on(async {
         let reader = OrdersReader::new(args.orders_file_path);
         let reader_addr = reader.start();
-        let coffee_maker = CoffeeMaker::new(
-            reader_addr.clone(),
-            args.server_ip_and_port,
-            Box::new(RealRandomizer::new(SUCCESS_CHANCE)),
-        );
-        if coffee_maker.is_err() {
-            System::current().stop();
-            return;
+        let mut coffee_addresses = Vec::new();
+        for id in 0..DISPENSERS {
+            let coffee_maker = CoffeeMaker::new(
+                reader_addr.clone(),
+                &args.server_ip_and_port,
+                Box::new(RealRandomizer::new(SUCCESS_CHANCE)),
+                id,
+            );
+            match coffee_maker {
+                Err(_) => {
+                    System::current().stop();
+                    return;
+                }
+                Ok(coffee_maker) => {
+                    let coffee_maker_addr = coffee_maker.start();
+                    coffee_addresses.push(coffee_maker_addr);
+                }
+            }
         }
-        let coffee_maker = coffee_maker.unwrap();
-        let coffee_maker_addr = coffee_maker.start();
-        if reader_addr.try_send(OpenFile(coffee_maker_addr)).is_err() {
+        if reader_addr.try_send(OpenFile(coffee_addresses)).is_err() {
             error!("[COFFEE MAKER] Unable to send OpenFile message to file reader");
             System::current().stop();
         }

@@ -5,24 +5,24 @@ use actix::Message;
 
 #[derive(Message)]
 #[rtype(result = "()")]
-pub struct OpenFile(pub Addr<CoffeeMaker>);
+pub struct OpenFile(pub Vec<Addr<CoffeeMaker>>);
 
 #[derive(Message)]
 #[rtype(result = "()")]
-pub struct ReadAnOrder;
+pub struct ReadAnOrder(pub usize);
 
-#[derive(Message)]
+#[derive(Message, Clone)]
 #[rtype(result = "()")]
 pub struct ProcessOrder(pub Order);
 
-#[derive(Message)]
+#[derive(Message, Clone)]
 #[rtype(result = "()")]
 pub struct OpenedFile;
 
-#[derive(Message)]
+#[derive(Message, Clone)]
 #[rtype(result = "()")]
 pub struct ErrorOpeningFile;
 
-#[derive(Message)]
+#[derive(Message, Clone)]
 #[rtype(result = "()")]
 pub struct FinishedFile;
