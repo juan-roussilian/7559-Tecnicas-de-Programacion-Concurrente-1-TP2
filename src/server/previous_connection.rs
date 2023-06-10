@@ -133,7 +133,7 @@ impl PrevConnection {
                         guard.add_points(
                             update.account_id,
                             update.points,
-                            None, /* TODO add ts, it should not be None here*/
+                            Some(update.last_updated_on),
                         );
                     }
                 } else if update.message_type == MessageType::TakePoints {
@@ -141,7 +141,7 @@ impl PrevConnection {
                         guard.substract_points(
                             update.account_id,
                             update.points,
-                            None, /* TODO add ts, it should not be None here*/
+                            Some(update.last_updated_on),
                         );
                     }
                 }
