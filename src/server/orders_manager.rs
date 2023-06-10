@@ -4,7 +4,7 @@ use lib::common_errors::ConnectionError;
 use lib::local_connection_messages::{
     CoffeeMakerRequest, CoffeeMakerResponse, MessageType, ResponseStatus,
 };
-use log::error;
+use log::{debug, error};
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::Mutex;
 
@@ -49,7 +49,7 @@ impl OrdersManager {
     pub fn handle_orders(&mut self) -> Result<(), ServerError> {
         loop {
             let mut token = self.token_receiver.recv()?;
-
+            debug!("[ORDERS MANAGER] I have the token");
             let adding_orders;
             let request_points_orders;
             {
@@ -57,6 +57,7 @@ impl OrdersManager {
                 if orders.is_empty() {
                     self.to_next_sender
                         .send(recreate_token(self.my_id, token))?;
+                    debug!("[ORDERS MANAGER] I don't need the token");
                     continue;
                 }
                 adding_orders = orders.get_and_clear_adding_orders();
@@ -100,16 +101,13 @@ impl OrdersManager {
                     }
                     _ => ResponseStatus::Err(ConnectionError::UnexpectedError),
                 };
-                let result = self.request_points_channel.send((
+                self.request_points_channel.send((
                     CoffeeMakerResponse {
                         message_type: MessageType::RequestPoints,
                         status,
                     },
                     coffee_maker_id,
-                ));
-                if result.is_err() {
-                    return Err(ServerError::ChannelError);
-                }
+                ))?;
             }
 
             for _ in 0..total_request_orders {
@@ -152,6 +150,7 @@ impl OrdersManager {
             }
             self.to_next_sender
                 .send(recreate_token(self.my_id, token))?;
+            debug!("[ORDERS MANAGER] Passed the token to next connection");
         }
     }
 }

@@ -4,7 +4,7 @@ use lib::{
     local_connection_messages::MessageType,
     serializer::serialize,
 };
-use log::{error, info};
+use log::{debug, error, info, warn};
 use std::{
     sync::{
         mpsc::{Receiver, RecvTimeoutError},
@@ -185,6 +185,10 @@ impl NextConnection {
             let mut message = result.unwrap();
             match &mut message.message_type {
                 ServerMessageType::NewConnection(diff) => {
+                    debug!(
+                        "[SENDER {}] Redirecting new connection message from {} to {}",
+                        self.id, message.sender_id, self.next_id
+                    );
                     if is_in_between(self.id, message.sender_id, self.next_id) {
                         self.add_data_to_diff(diff);
                         let result = self.connect_to_new_conn(message.sender_id);
@@ -256,15 +260,30 @@ impl NextConnection {
                     // (llego al final de la carrera - no estaba el token circulando porque se perdio)
                     // nos conectamos con el siguiente y mandarle mensaje token guardado
                     if self.next_id == lost_id {
+                        warn!(
+                            "[SENDER {}] We lost the token, sending copy to next possible connection",
+                            self.id
+                        );
                         if let Some(token) = self.last_token.as_ref() {
                             if self.connect_to_next(token.clone()).is_err() {
-                                error!("Error passing the token to the next, we lost connection");
+                                error!(
+                                    "[SENDER {}] Error passing the token to the next, we lost connection",
+                                    self.id
+                                );
                                 continue;
                             }
+                            info!(
+                                "[SENDER {}] We managed to send the copy of the token to {}",
+                                self.id, self.next_id
+                            );
                         }
                     }
                     message.passed_by.insert(self.id);
                     if self.send_message(message.clone()).is_err() {
+                        error!(
+                            "[SENDER {}] Next is offline, trying to contact nodes after me and initial lost server",
+                            self.id
+                        );
                         let mut in_order = (self.next_id..lost_id).collect::<Vec<_>>();
                         if lost_id < self.next_id {
                             let ring_return = (0..lost_id).collect::<Vec<_>>();
@@ -285,21 +304,41 @@ impl NextConnection {
                         }
 
                         if self.connection.is_some() {
+                            info!(
+                                "[SENDER {}] Sent Maybe We Lost The token to {} in between me and lost node",
+                                self.id,
+                                self.next_id
+                            );
                             continue;
                         }
 
                         // Yo perdi la conexion
                         if !self.connection_status.lock()?.is_prev_online() {
+                            error!("[SENDER {}] I lost connection", self.id);
                             continue;
                         }
 
                         if let Some(token) = self.last_token.as_ref() {
+                            warn!(
+                                "[SENDER {}] The token was lost between {} and {}, sending copy to next possible connection",
+                                self.id,
+                                self.id,
+                                lost_id
+                            );
                             if self.connect_to_next(token.clone()).is_err() {
-                                error!("Error passing the token to the next, we lost connection");
+                                error!(
+                                    "[SENDER {}] Error passing the token to the next, we lost connection",
+                                    self.id
+                                );
+                                continue;
                             }
+                            info!(
+                                "[SENDER {}] Managed to send a copy of the token to next connection {}",
+                                self.id,
+                                self.next_id
+                            );
                         }
                     }
-                    // mas que verlo como un lost connection verlo como un maybe we lost the token, circula por la red en forma de carrera (si esta el token)
                 }
                 _ => {}
             }
@@ -321,12 +360,19 @@ impl NextConnection {
     }
 
     fn add_data_to_diff(&self, diff: &mut Diff) {
+        info!(
+            "[SENDER {}] New connection is in between, adding diff data to update server",
+            self.id
+        );
         if let Ok(accounts) = self.accounts_manager.lock() {
             let update = accounts.get_accounts_updated_after(diff.last_update);
             diff.changes = update;
             return;
         }
-        error!("Error adding update to new connection message");
+        error!(
+            "[SENDER {}] Error adding update to new connection message",
+            self.id
+        );
     }
 
     fn connect_to_new_conn(&mut self, sender_id: usize) -> Result<TcpConnection, ServerError> {
