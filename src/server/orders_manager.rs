@@ -1,19 +1,20 @@
-use std::sync::Arc;
+use std::sync::{Arc, MutexGuard};
 
 use lib::common_errors::ConnectionError;
 use lib::local_connection_messages::{
     CoffeeMakerRequest, CoffeeMakerResponse, MessageType, ResponseStatus,
 };
 use log::{debug, error};
-use std::sync::mpsc::{Receiver, Sender};
+use std::sync::mpsc::{Receiver, RecvTimeoutError, Sender};
 use std::sync::Mutex;
 
 use crate::accounts_manager::AccountsManager;
+use crate::constants::{COFFEE_RESULT_TIMEOUT_IN_MS, POST_INITIAL_TIMEOUT_COFFEE_RESULT_IN_MS};
 use crate::errors::ServerError;
 use crate::memory_accounts_manager::MemoryAccountsManager;
 use crate::orders_queue::OrdersQueue;
 use crate::server_messages::{recreate_token, AccountAction, ServerMessage, TokenData};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 pub struct OrdersManager {
     my_id: usize,
@@ -48,6 +49,7 @@ impl OrdersManager {
 
     pub fn handle_orders(&mut self) -> Result<(), ServerError> {
         loop {
+            let mut timeout = Duration::from_millis(COFFEE_RESULT_TIMEOUT_IN_MS);
             let mut token = self.token_receiver.recv()?;
             debug!("[ORDERS MANAGER] I have the token");
             let adding_orders;
@@ -110,47 +112,67 @@ impl OrdersManager {
                 ))?;
             }
 
+            let mut there_was_a_timeout = false;
             for _ in 0..total_request_orders {
-                // TODO agregar timeout al channel este
-                let result = self.result_take_points_channel.recv()?;
-                let timestamp = SystemTime::now().duration_since(UNIX_EPOCH)?.as_nanos();
-                match result.message_type {
-                    MessageType::CancelPointsRequest => {
-                        if accounts.cancel_requested_points(result.account_id).is_err() {
-                            {
-                                error!(
-                                    "Error canceling points request from account {}",
-                                    result.account_id
-                                );
-                                continue;
-                            }
-                        }
+                let result = self.result_take_points_channel.recv_timeout(timeout);
+                match result {
+                    Ok(result) => {
+                        self.handle_result_of_substract_order(result, &accounts, &mut token)?;
                     }
-                    MessageType::TakePoints => {
-                        if accounts
-                            .substract_points(result.account_id, result.points, Some(timestamp))
-                            .is_err()
-                        {
-                            error!(
-                                "Error substracting {} points from account {}",
-                                result.points, result.account_id
-                            );
-                            continue;
-                        }
-                        let action = AccountAction {
-                            message_type: MessageType::TakePoints,
-                            account_id: result.account_id,
-                            points: result.points,
-                            last_updated_on: timestamp,
-                        };
-                        token.entry(self.my_id).or_insert(vec![]).push(action);
+                    Err(RecvTimeoutError::Timeout) => {
+                        there_was_a_timeout = true;
+                        timeout = Duration::from_millis(POST_INITIAL_TIMEOUT_COFFEE_RESULT_IN_MS);
                     }
-                    _ => {}
+                    Err(RecvTimeoutError::Disconnected) => {
+                        return Err(ServerError::ChannelError);
+                    }
                 }
+            }
+            if there_was_a_timeout {
+                accounts.clear_reservations();
             }
             self.to_next_sender
                 .send(recreate_token(self.my_id, token))?;
             debug!("[ORDERS MANAGER] Passed the token to next connection");
         }
+    }
+
+    fn handle_result_of_substract_order(
+        &self,
+        result: CoffeeMakerRequest,
+        accounts: &MutexGuard<MemoryAccountsManager>,
+        token: &mut TokenData,
+    ) -> Result<(), ServerError> {
+        match result.message_type {
+            MessageType::CancelPointsRequest => {
+                if accounts.cancel_requested_points(result.account_id).is_err() {
+                    error!(
+                        "Error canceling points request from account {}",
+                        result.account_id
+                    );
+                }
+            }
+            MessageType::TakePoints => {
+                let timestamp = SystemTime::now().duration_since(UNIX_EPOCH)?.as_nanos();
+                if let Err(e) =
+                    accounts.substract_points(result.account_id, result.points, Some(timestamp))
+                {
+                    error!(
+                        "Error taking {} points from account {}, {:?}",
+                        result.points, result.account_id, e
+                    );
+                    return Ok(());
+                }
+                let action = AccountAction {
+                    message_type: MessageType::TakePoints,
+                    account_id: result.account_id,
+                    points: result.points,
+                    last_updated_on: timestamp,
+                };
+                token.entry(self.my_id).or_insert(vec![]).push(action);
+            }
+            _ => {}
+        }
+        Ok(())
     }
 }

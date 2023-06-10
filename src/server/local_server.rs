@@ -2,7 +2,7 @@ use std::{
     collections::HashMap,
     sync::{
         mpsc::{self, Sender},
-        Arc, Condvar, Mutex,
+        Arc, Mutex,
     },
     thread::{self, JoinHandle},
 };
@@ -12,7 +12,6 @@ use lib::common_errors::ConnectionError;
 use log::error;
 
 use crate::{
-    accounts_manager::AccountsManager,
     address_resolver::id_to_server_port,
     coffee_maker_server::CoffeeMakerServer,
     coffee_message_dispatcher::CoffeeMessageDispatcher,
@@ -21,7 +20,7 @@ use crate::{
     errors::ServerError,
     memory_accounts_manager::MemoryAccountsManager,
     next_connection::NextConnection,
-    offline_substract_orders_cleaner::clean_substract_orders_if_offline,
+    offline_substract_orders_cleaner::SubstractOrdersCleaner,
     orders_manager::OrdersManager,
     orders_queue::OrdersQueue,
     previous_connection::PrevConnection,
@@ -39,7 +38,6 @@ pub struct LocalServer {
     next_conn_handle: Option<JoinHandle<Result<(), ServerError>>>,
     orders_manager_handle: Option<JoinHandle<Result<(), ServerError>>>,
     dispatcher_handle: Option<JoinHandle<Result<(), ServerError>>>,
-    cleaner_handler: Option<JoinHandle<Result<(), ServerError>>>,
     coffee_handle: Option<JoinHandle<Result<(), ServerError>>>,
 }
 
@@ -59,10 +57,7 @@ impl LocalServer {
 
         let orders = Arc::new(Mutex::new(OrdersQueue::new()));
         let orders_clone = orders.clone();
-        let connection_status_clone = connection_status.clone();
         let request_points_channel_clone = request_points_result_sender.clone();
-        let connected_cond = Arc::new(Condvar::new());
-        let connected_cond_clone = connected_cond.clone();
 
         let accounts_manager = Arc::new(Mutex::new(MemoryAccountsManager::new()));
 
@@ -84,6 +79,9 @@ impl LocalServer {
             machine_response_senders.clone(),
         );
 
+        let offline_cleaner =
+            SubstractOrdersCleaner::new(orders_clone, request_points_channel_clone);
+
         let mut next_connection = NextConnection::new(
             id,
             peer_count,
@@ -91,6 +89,7 @@ impl LocalServer {
             connection_status.clone(),
             have_token.clone(),
             accounts_manager.clone(),
+            offline_cleaner,
         );
 
         let coffee_server =
@@ -101,7 +100,6 @@ impl LocalServer {
         }
         let mut coffee_server = coffee_server.unwrap();
         let coffee_handle = thread::spawn(move || coffee_server.listen());
-
         let dispatcher_handle = thread::spawn(move || {
             coffee_message_dispatcher.dispatch_coffee_requests(
                 result_points_sender,
@@ -110,16 +108,6 @@ impl LocalServer {
             )
         });
         let orders_manager_handle = thread::spawn(move || orders_manager.handle_orders());
-
-        let cleaner_handler = thread::spawn(move || {
-            clean_substract_orders_if_offline(
-                orders_clone,
-                connection_status_clone,
-                request_points_channel_clone,
-                connected_cond_clone,
-            )
-        });
-
         let next_conn_handle = thread::spawn(move || next_connection.handle_message_to_next());
 
         Ok(LocalServer {
@@ -133,7 +121,6 @@ impl LocalServer {
             next_conn_handle: Some(next_conn_handle),
             dispatcher_handle: Some(dispatcher_handle),
             orders_manager_handle: Some(orders_manager_handle),
-            cleaner_handler: Some(cleaner_handler),
             coffee_handle: Some(coffee_handle),
         })
     }
@@ -144,7 +131,6 @@ impl LocalServer {
         }
         self.coffee_handle.take().map(JoinHandle::join);
         self.dispatcher_handle.take().map(JoinHandle::join);
-        self.cleaner_handler.take().map(JoinHandle::join);
         self.next_conn_handle.take().map(JoinHandle::join);
         self.orders_manager_handle.take().map(JoinHandle::join);
     }
