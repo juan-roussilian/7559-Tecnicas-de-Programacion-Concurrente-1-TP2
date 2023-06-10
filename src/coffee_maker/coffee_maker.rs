@@ -100,6 +100,7 @@ impl CoffeeMaker {
 
     fn stop_system(&mut self, ctx: &mut Context<Self>) {
         ctx.stop();
+        System::current().stop();
     }
 }
 
