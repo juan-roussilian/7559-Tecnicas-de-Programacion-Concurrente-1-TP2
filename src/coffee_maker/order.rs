@@ -2,14 +2,14 @@ use log::error;
 
 use crate::errors::CoffeeMakerError;
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Order {
     pub consumption_type: ConsumptionType,
     pub account_id: usize,
     pub consumption: usize,
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum ConsumptionType {
     Points,
     Cash,

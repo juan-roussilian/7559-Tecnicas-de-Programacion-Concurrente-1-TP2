@@ -20,7 +20,7 @@ pub struct TcpConnection {
 }
 
 impl TcpConnection {
-    pub fn new_client_connection(server_addr: String) -> Result<TcpConnection, ConnectionError> {
+    pub fn new_client_connection(server_addr: &String) -> Result<TcpConnection, ConnectionError> {
         let result = task::block_on(TcpStream::connect(&server_addr));
         match result {
             Err(e) => {

@@ -94,7 +94,7 @@ impl NextConnection {
         message: ServerMessage,
     ) -> Result<(), ServerError> {
         for id in start..stop {
-            let result = TcpConnection::new_client_connection(id_to_address(id));
+            let result = TcpConnection::new_client_connection(&id_to_address(id));
             if let Ok(connection) = result {
                 self.next_id = id;
                 self.connection = Some(connection);
@@ -273,7 +273,7 @@ impl NextConnection {
                         }
 
                         for id in in_order {
-                            let result = TcpConnection::new_client_connection(id_to_address(id));
+                            let result = TcpConnection::new_client_connection(&id_to_address(id));
                             if let Ok(connection) = result {
                                 self.next_id = id;
                                 self.connection = Some(connection);
@@ -330,7 +330,7 @@ impl NextConnection {
     }
 
     fn connect_to_new_conn(&mut self, sender_id: usize) -> Result<TcpConnection, ServerError> {
-        let result = TcpConnection::new_client_connection(id_to_address(sender_id));
+        let result = TcpConnection::new_client_connection(&id_to_address(sender_id));
         if let Ok(connection) = result {
             return Ok(connection);
         }
