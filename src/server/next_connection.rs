@@ -10,6 +10,7 @@ use std::{
         mpsc::{Receiver, RecvTimeoutError},
         Arc, Mutex,
     },
+    thread,
     time::Duration,
 };
 
@@ -25,7 +26,7 @@ use crate::{
     memory_accounts_manager::MemoryAccountsManager,
     server_messages::{
         create_close_connection_message, create_new_connection_message, create_token_message, Diff,
-        ServerMessage, ServerMessageType, TokenData,
+        ServerMessage, ServerMessageType,
     },
 };
 
@@ -124,7 +125,7 @@ impl NextConnection {
             return self.attempt_connections(0, 1, message);
         }
         self.connection_status.lock()?.set_next_offline();
-        return Err(ServerError::ConnectionLost);
+        Err(ServerError::ConnectionLost)
     }
 
     fn try_to_connect_wait_if_offline(&mut self) -> Result<(), ServerError> {
@@ -308,6 +309,7 @@ impl NextConnection {
     fn send_message(&mut self, message: ServerMessage) -> Result<(), ServerError> {
         let message = serialize(&message)?;
         if let Some(connection) = self.connection.as_mut() {
+            thread::sleep(Duration::from_millis(1000));
             if task::block_on(connection.send(&message[..])).is_err() {
                 self.connection = None;
                 self.connection_status.lock()?.set_next_offline();
@@ -338,5 +340,6 @@ impl NextConnection {
 
 fn is_in_between(my_id: usize, sender_id: usize, next_id: usize) -> bool {
     // caso cerramos circulo o caso en orden
-    (next_id < my_id && my_id < sender_id) || (my_id < sender_id && sender_id < next_id)
+    // (next_id < my_id && my_id < sender_id) || (my_id < sender_id && sender_id < next_id)
+    (sender_id < next_id || next_id < my_id) && my_id < sender_id
 }

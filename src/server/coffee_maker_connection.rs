@@ -7,7 +7,7 @@ use lib::{
     local_connection_messages::{CoffeeMakerRequest, CoffeeMakerResponse},
     serializer::{deserialize, serialize},
 };
-use log::{error, info};
+use log::{debug, error};
 
 pub fn receive_messages_from_coffee_maker(
     connection: &mut Box<dyn ConnectionProtocol + Send>,
@@ -16,12 +16,17 @@ pub fn receive_messages_from_coffee_maker(
     response_receiver: Receiver<CoffeeMakerResponse>,
 ) -> Result<(), ConnectionError> {
     loop {
-        let mut encoded = task::block_on(async { connection.recv().await })?;
+        let mut encoded = task::block_on(connection.recv())?;
         let decoded: CoffeeMakerRequest = deserialize(&mut encoded)?;
-        info!("{:?}", decoded);
-
-        if let Err(e) = request_sender.send((decoded, machine_id)) {
-            error!("trying to send on a channel without receiver!");
+        debug!(
+            "[COFFEE MAKER {}] Received {:?} message",
+            machine_id, decoded
+        );
+        if request_sender.send((decoded, machine_id)).is_err() {
+            error!(
+                "[COFFEE MAKER {}] Trying to send on a channel without receiver",
+                machine_id
+            );
             return Err(ConnectionError::ConnectionClosed);
         }
 
@@ -29,12 +34,15 @@ pub fn receive_messages_from_coffee_maker(
 
         match response {
             Err(_) => {
-                error!("Trying to receive on a channel without sender");
+                error!(
+                    "[COFFEE MAKER {}] Trying to receive on a channel without sender",
+                    machine_id
+                );
                 return Err(ConnectionError::ConnectionClosed);
             }
             Ok(res) => {
                 let serialized = serialize(&res)?;
-                task::block_on(async { connection.send(&serialized).await })?;
+                task::block_on(connection.send(&serialized))?;
             }
         }
     }

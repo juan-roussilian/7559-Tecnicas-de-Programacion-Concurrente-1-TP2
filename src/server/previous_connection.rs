@@ -1,6 +1,8 @@
 use std::{
     collections::HashSet,
     sync::{mpsc::Sender, Arc, Mutex},
+    thread,
+    time::Duration,
 };
 
 use async_std::task;
@@ -88,6 +90,7 @@ impl PrevConnection {
                     return Ok(());
                 }
                 ServerMessageType::Token(data) => {
+                    thread::sleep(Duration::from_millis(100));
                     self.set_listening_to_id(&message.passed_by, message.sender_id);
                     debug!("Received the token");
                     *self.have_token.lock()? = true;
@@ -137,7 +140,7 @@ impl PrevConnection {
                         );
                     }
                 } else if update.message_type == MessageType::TakePoints {
-                    if let Ok(mut guard) = self.accounts_manager.lock() {
+                    if let Ok(guard) = self.accounts_manager.lock() {
                         guard.substract_points(
                             update.account_id,
                             update.points,

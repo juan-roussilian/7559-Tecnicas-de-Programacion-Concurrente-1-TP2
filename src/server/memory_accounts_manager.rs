@@ -30,11 +30,9 @@ impl AccountsManager for MemoryAccountsManager {
             if let Some(new_account) = Account::new(account_id, points) {
                 e.insert(Arc::new(RwLock::new(new_account)));
             }
-        } else {
-            if let Some(account) = self.accounts.get(&account_id) {
-                let mut account_guard = account.write()?;
-                account_guard.add_points(points, operation_time)?;
-            }
+        } else if let Some(account) = self.accounts.get(&account_id) {
+            let mut account_guard = account.write()?;
+            account_guard.add_points(points, operation_time)?;
         }
         Ok(())
     }
@@ -124,5 +122,11 @@ impl AccountsManager for MemoryAccountsManager {
             }
         }
         updated_accounts
+    }
+}
+
+impl Default for MemoryAccountsManager {
+    fn default() -> Self {
+        Self::new()
     }
 }

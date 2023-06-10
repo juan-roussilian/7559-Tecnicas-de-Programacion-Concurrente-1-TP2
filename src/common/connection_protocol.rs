@@ -21,7 +21,6 @@ pub struct TcpConnection {
 
 impl TcpConnection {
     pub fn new_client_connection(server_addr: String) -> Result<TcpConnection, ConnectionError> {
-        // TODO revisar
         let result = task::block_on(TcpStream::connect(&server_addr));
         match result {
             Err(e) => {

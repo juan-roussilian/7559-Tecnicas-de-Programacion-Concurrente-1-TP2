@@ -1,4 +1,4 @@
-use std::sync::{Arc, Condvar};
+use std::sync::Arc;
 
 use lib::common_errors::ConnectionError;
 use lib::local_connection_messages::{
