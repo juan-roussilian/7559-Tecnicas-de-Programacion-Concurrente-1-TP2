@@ -147,8 +147,8 @@ impl NextConnection {
     pub fn handle_message_to_next(&mut self) -> Result<(), ServerError> {
         let timeout = Duration::from_millis(TO_NEXT_CONN_CHANNEL_TIMEOUT_IN_MS);
         let mut pending_sums = vec![];
-        self.try_to_connect_wait_if_offline()?;
         if self.id == 0 {
+            self.try_to_connect_wait_if_offline()?;
             if self.send_message(create_token_message(self.id)).is_err() {
                 error!("Failed to send initial token");
                 return Err(ServerError::ConnectionLost);
@@ -387,5 +387,5 @@ impl NextConnection {
 fn is_in_between(my_id: usize, sender_id: usize, next_id: usize) -> bool {
     // caso cerramos circulo o caso en orden
     // (next_id < my_id && my_id < sender_id) || (my_id < sender_id && sender_id < next_id)
-    (sender_id < next_id || next_id < my_id) && my_id < sender_id
+    (sender_id < next_id || next_id <= my_id) && my_id < sender_id
 }
