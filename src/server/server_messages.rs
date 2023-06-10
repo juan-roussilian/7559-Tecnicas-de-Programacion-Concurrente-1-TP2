@@ -1,9 +1,6 @@
-use std::{
-    collections::{HashMap, HashSet},
-    time::Duration,
-};
+use std::collections::{HashMap, HashSet};
 
-use lib::local_connection_messages::CoffeeMakerRequest;
+use lib::local_connection_messages::MessageType;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -22,7 +19,15 @@ pub enum ServerMessageType {
 }
 
 type ServerId = usize;
-pub type TokenData = HashMap<usize, Vec<CoffeeMakerRequest>>;
+pub type TokenData = HashMap<usize, Vec<AccountAction>>;
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct AccountAction {
+    pub message_type: MessageType,
+    pub account_id: usize,
+    pub points: usize,
+    pub last_updated_on: u128,
+}
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Diff {
@@ -55,6 +60,10 @@ pub fn create_maybe_we_lost_the_token_message(sender_id: usize, to_id: usize) ->
 
 pub fn create_close_connection_message(sender_id: usize) -> ServerMessage {
     create_server_message(sender_id, ServerMessageType::CloseConnection)
+}
+
+pub fn recreate_token(sender_id: usize, token_data: TokenData) -> ServerMessage {
+    create_server_message(sender_id, ServerMessageType::Token(token_data))
 }
 
 fn create_server_message(sender_id: usize, message_type: ServerMessageType) -> ServerMessage {

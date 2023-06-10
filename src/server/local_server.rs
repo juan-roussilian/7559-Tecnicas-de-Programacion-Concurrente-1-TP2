@@ -1,9 +1,10 @@
 use std::{
+    collections::HashMap,
     sync::{
         mpsc::{self, Sender},
         Arc, Condvar, Mutex,
     },
-    thread::{self, JoinHandle}, collections::HashMap,
+    thread::{self, JoinHandle},
 };
 
 use async_std::task;
@@ -11,18 +12,20 @@ use lib::common_errors::ConnectionError;
 use log::error;
 
 use crate::{
+    accounts_manager::AccountsManager,
     address_resolver::id_to_server_port,
+    coffee_maker_server::CoffeeMakerServer,
     coffee_message_dispatcher::CoffeeMessageDispatcher,
     connection_server::{ConnectionServer, TcpConnectionServer},
     connection_status::ConnectionStatus,
     errors::ServerError,
+    memory_accounts_manager::MemoryAccountsManager,
     next_connection::NextConnection,
     offline_substract_orders_cleaner::clean_substract_orders_if_offline,
     orders_manager::OrdersManager,
     orders_queue::OrdersQueue,
     previous_connection::PrevConnection,
-    server_messages::ServerMessage, memory_accounts_manager::MemoryAccountsManager, accounts_manager::AccountsManager,
-    coffee_maker_server::CoffeeMakerServer
+    server_messages::{ServerMessage, TokenData},
 };
 
 pub struct LocalServer {
@@ -30,11 +33,11 @@ pub struct LocalServer {
     listener: Box<dyn ConnectionServer>,
     connection_status: Arc<Mutex<ConnectionStatus>>,
     to_next_conn_sender: Sender<ServerMessage>,
-    to_orders_manager_sender: Sender<ServerMessage>,
+    to_orders_manager_sender: Sender<TokenData>,
     have_token: Arc<Mutex<bool>>,
     accounts_manager: Arc<Mutex<MemoryAccountsManager>>,
     next_conn_handle: Option<JoinHandle<Result<(), ServerError>>>,
-    orders_manager_handle:  Option<JoinHandle<Result<(), ServerError>>>,
+    orders_manager_handle: Option<JoinHandle<Result<(), ServerError>>>,
     dispatcher_handle: Option<JoinHandle<Result<(), ServerError>>>,
     cleaner_handler: Option<JoinHandle<Result<(), ServerError>>>,
     coffee_handle: Option<JoinHandle<Result<(), ServerError>>>,
@@ -63,13 +66,14 @@ impl LocalServer {
 
         let accounts_manager = Arc::new(Mutex::new(MemoryAccountsManager::new()));
 
-        let mut orders_manager =OrdersManager::new(
+        let mut orders_manager = OrdersManager::new(
+            id,
             orders.clone(),
             orders_manager_receiver,
             to_next_conn_sender.clone(),
             request_points_result_sender.clone(),
             result_points_receiver,
-            accounts_manager.clone()
+            accounts_manager.clone(),
         );
 
         let machine_response_senders = Arc::new(Mutex::new(HashMap::new()));
@@ -77,7 +81,7 @@ impl LocalServer {
             connection_status.clone(),
             orders,
             orders_from_coffee_receiver,
-            machine_response_senders.clone()
+            machine_response_senders.clone(),
         );
 
         let mut next_connection = NextConnection::new(
@@ -86,19 +90,26 @@ impl LocalServer {
             next_conn_receiver,
             connection_status.clone(),
             have_token.clone(),
-            accounts_manager.clone()
+            accounts_manager.clone(),
         );
 
-        let coffee_server = CoffeeMakerServer::new(id, orders_from_coffee_sender, machine_response_senders);
+        let coffee_server =
+            CoffeeMakerServer::new(id, orders_from_coffee_sender, machine_response_senders);
         if coffee_server.is_err() {
             error!("Error booting up coffee maker server, stopping...");
             return Err(ServerError::CoffeeServerStartError);
         }
         let mut coffee_server = coffee_server.unwrap();
-        let coffee_handle = thread::spawn(move||{coffee_server.listen()});
+        let coffee_handle = thread::spawn(move || coffee_server.listen());
 
-        let dispatcher_handle = thread::spawn(move||{coffee_message_dispatcher.dispatch_coffee_requests(result_points_sender, request_points_result_sender, request_points_result_receiver)});
-        let orders_manager_handle = thread::spawn(move||{orders_manager.handle_orders()});
+        let dispatcher_handle = thread::spawn(move || {
+            coffee_message_dispatcher.dispatch_coffee_requests(
+                result_points_sender,
+                request_points_result_sender,
+                request_points_result_receiver,
+            )
+        });
+        let orders_manager_handle = thread::spawn(move || orders_manager.handle_orders());
 
         let cleaner_handler = thread::spawn(move || {
             clean_substract_orders_if_offline(
@@ -109,8 +120,7 @@ impl LocalServer {
             )
         });
 
-        let next_conn_handle = thread::spawn(move||{next_connection.handle_message_to_next()});
-
+        let next_conn_handle = thread::spawn(move || next_connection.handle_message_to_next());
 
         Ok(LocalServer {
             listener,
@@ -121,22 +131,22 @@ impl LocalServer {
             have_token,
             accounts_manager,
             next_conn_handle: Some(next_conn_handle),
-            dispatcher_handle : Some(dispatcher_handle),
+            dispatcher_handle: Some(dispatcher_handle),
             orders_manager_handle: Some(orders_manager_handle),
             cleaner_handler: Some(cleaner_handler),
-            coffee_handle: Some(coffee_handle)
+            coffee_handle: Some(coffee_handle),
         })
     }
 
     pub fn start_server(&mut self) {
-
-
-        if self.listen().is_err(){
+        if self.listen().is_err() {
             error!("Error on local server listener");
         }
         self.coffee_handle.take().map(JoinHandle::join);
         self.dispatcher_handle.take().map(JoinHandle::join);
         self.cleaner_handler.take().map(JoinHandle::join);
+        self.next_conn_handle.take().map(JoinHandle::join);
+        self.orders_manager_handle.take().map(JoinHandle::join);
     }
 
     fn listen(&mut self) -> Result<(), ServerError> {
@@ -152,7 +162,7 @@ impl LocalServer {
                 self.connection_status.clone(),
                 self.id,
                 self.have_token.clone(),
-                self.accounts_manager.clone()
+                self.accounts_manager.clone(),
             );
 
             let new_prev_handle = thread::spawn(move || previous.listen());

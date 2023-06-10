@@ -76,7 +76,7 @@ impl CoffeeMaker {
     ) {
         match result {
             Err(ConnectionError::ConnectionLost) => {
-                error!("[CoffeeMaker] can't connect to server,, stopping...");
+                error!("[CoffeeMaker] can't connect to server, stopping...");
                 self.stop_system(ctx);
             }
             Err(e) => {

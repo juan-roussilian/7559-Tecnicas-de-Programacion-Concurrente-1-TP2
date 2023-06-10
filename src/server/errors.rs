@@ -1,6 +1,5 @@
-
-use std::time::SystemTimeError;
 use log::error;
+use std::time::SystemTimeError;
 
 #[derive(Debug)]
 pub enum ServerError {
@@ -17,7 +16,7 @@ pub enum ServerError {
     OperationIsOutdated,
     AccountIsReserved,
     CoffeeServerStartError,
-    TimestampError
+    TimestampError,
 }
 
 impl<T> From<std::sync::PoisonError<T>> for ServerError {

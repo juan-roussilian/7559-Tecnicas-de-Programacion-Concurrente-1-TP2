@@ -1,20 +1,20 @@
+use async_std::task;
+use lib::{
+    connection_protocol::{ConnectionProtocol, TcpConnection},
+    local_connection_messages::MessageType,
+    serializer::serialize,
+};
+use log::{error, info};
 use std::{
-    collections::{HashMap, HashSet},
     sync::{
         mpsc::{Receiver, RecvTimeoutError},
         Arc, Mutex,
     },
     time::Duration,
 };
-use async_std::task;
-use lib::{
-    connection_protocol::{ConnectionProtocol, TcpConnection},
-    local_connection_messages::{CoffeeMakerRequest, MessageType},
-    serializer::serialize,
-};
-use log::{error, info};
 
 use crate::{
+    accounts_manager::AccountsManager,
     address_resolver::id_to_address,
     connection_status::ConnectionStatus,
     constants::{
@@ -26,9 +26,7 @@ use crate::{
     server_messages::{
         create_close_connection_message, create_new_connection_message, create_token_message, Diff,
         ServerMessage, ServerMessageType, TokenData,
-
     },
-    accounts_manager::AccountsManager
 };
 
 use self::sync::sleep;
@@ -174,8 +172,8 @@ impl NextConnection {
                         let mut connected = self.connection_status.lock()?;
                         if !connected.is_prev_online() {
                             connected.set_next_offline();
-                            continue;
                         }
+                        continue;
                     }
                     RecvTimeoutError::Disconnected => {
                         error!("[TO NEXT CONNECTION] Channel error, stopping...");
@@ -321,7 +319,12 @@ impl NextConnection {
     }
 
     fn add_data_to_diff(&self, diff: &mut Diff) {
-        // TODO llamar al accounts manager para que nos de o agregue al diff todo lo mas nuevo
+        if let Ok(accounts) = self.accounts_manager.lock() {
+            let update = accounts.get_accounts_updated_after(diff.last_update);
+            diff.changes = update;
+            return;
+        }
+        error!("Error adding update to new connection message");
     }
 
     fn connect_to_new_conn(&mut self, sender_id: usize) -> Result<TcpConnection, ServerError> {

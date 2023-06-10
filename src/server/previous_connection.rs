@@ -8,6 +8,7 @@ use lib::{
     common_errors::ConnectionError, connection_protocol::ConnectionProtocol,
     local_connection_messages::MessageType, serializer::deserialize,
 };
+use log::{debug, info};
 
 use crate::{
     accounts_manager::AccountsManager,
@@ -21,7 +22,7 @@ use crate::{
 pub struct PrevConnection {
     connection: Box<dyn ConnectionProtocol + Send>,
     to_next_sender: Sender<ServerMessage>,
-    to_orders_manager_sender: Sender<ServerMessage>,
+    to_orders_manager_sender: Sender<TokenData>,
     connection_status: Arc<Mutex<ConnectionStatus>>,
     listening_to_id: Option<usize>,
     my_id: usize,
@@ -33,7 +34,7 @@ impl PrevConnection {
     pub fn new(
         connection: Box<dyn ConnectionProtocol + Send>,
         to_next_sender: Sender<ServerMessage>,
-        to_orders_manager_sender: Sender<ServerMessage>,
+        to_orders_manager_sender: Sender<TokenData>,
         connection_status: Arc<Mutex<ConnectionStatus>>,
         my_id: usize,
         have_token: Arc<Mutex<bool>>,
@@ -70,6 +71,7 @@ impl PrevConnection {
 
             match &mut message.message_type {
                 ServerMessageType::NewConnection(diff) => {
+                    info!("Received new connection message from {}", message.sender_id);
                     self.set_listening_to_id(&message.passed_by, message.sender_id);
                     if message.sender_id == self.my_id {
                         self.update_myself_by_diff(diff);
@@ -81,17 +83,20 @@ impl PrevConnection {
                     self.to_next_sender.send(message)?;
                 }
                 ServerMessageType::CloseConnection => {
+                    info!("Received close connection");
                     self.connection_status.lock()?.set_prev_offline();
                     return Ok(());
                 }
                 ServerMessageType::Token(data) => {
                     self.set_listening_to_id(&message.passed_by, message.sender_id);
+                    debug!("Received the token");
                     *self.have_token.lock()? = true;
                     self.receive_update_of_other_nodes_and_clean_my_updates(data);
-                    self.to_orders_manager_sender.send(message)?;
+                    self.to_orders_manager_sender.send(data.to_owned())?;
                 }
-                ServerMessageType::MaybeWeLostTheTokenTo(_) => {
+                ServerMessageType::MaybeWeLostTheTokenTo(lost_id) => {
                     self.set_listening_to_id(&message.passed_by, message.sender_id);
+                    debug!("Received maybe we lost the token to {}", lost_id);
                     if *self.have_token.lock()? {
                         continue;
                     }
@@ -106,6 +111,7 @@ impl PrevConnection {
 
     fn set_listening_to_id(&mut self, passed_by: &HashSet<usize>, sender: usize) {
         if self.listening_to_id.is_none() && passed_by.is_empty() {
+            info!("My previous connection is {}", sender);
             self.listening_to_id = Some(sender);
         }
     }

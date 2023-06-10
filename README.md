@@ -29,7 +29,7 @@ $ cargo run --bin [NOMBRE-APP] [ARGUMENTOS]
 De forma completa quedaría:
 ```
 $ RUST_LOG=info cargo run --bin server 0 5
-$ RUST_LOG=info cargo run --bin coffee_maker 127.0.0.1:10000 tests/orders.csv
+$ RUST_LOG=info cargo run --bin coffee_maker 127.0.0.1:20000 tests/orders.csv
 ```
 
 ### Tests
