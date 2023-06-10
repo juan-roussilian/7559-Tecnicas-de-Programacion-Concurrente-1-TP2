@@ -25,6 +25,10 @@ impl ConnectionStatus {
         self.prev == Status::Connected
     }
 
+    pub fn is_next_online(&self) -> bool {
+        self.next == Status::Connected
+    }
+
     pub fn set_prev_online(&mut self) {
         self.prev = Status::Connected;
     }

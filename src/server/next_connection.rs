@@ -10,7 +10,6 @@ use std::{
         mpsc::{Receiver, RecvTimeoutError},
         Arc, Mutex,
     },
-    thread,
     time::Duration,
 };
 
@@ -165,13 +164,17 @@ impl NextConnection {
             info!("Sent initial token to {}", self.next_id);
         }
         loop {
-            if !self.connection_status.lock()?.is_online() {
+            if !self.connection_status.lock()?.is_next_online() {
                 self.try_to_connect_wait_if_offline()?;
             }
             let result = self.next_conn_receiver.recv_timeout(timeout);
             if let Err(e) = result {
                 match e {
                     RecvTimeoutError::Timeout => {
+                        debug!(
+                            "[SENDER {}] Channel timeout, checking if previous is offline to restart network",
+                            self.id
+                        );
                         // Cubre el caso en que la red no quedo propiamente formada.
                         // Nos damos cuenta cuando no estamos escuchando mensajes de nadie (prev offline)
                         // pero nosotros nos creemos conectados.
@@ -181,12 +184,19 @@ impl NextConnection {
                         // Con algo mas de logica podemos manejar particiones...
                         let mut connected = self.connection_status.lock()?;
                         if !connected.is_prev_online() {
+                            debug!(
+                                "[SENDER {}] Previous is offline, restarting search",
+                                self.id
+                            );
                             connected.set_next_offline();
                         }
                         continue;
                     }
                     RecvTimeoutError::Disconnected => {
-                        error!("[TO NEXT CONNECTION] Channel error, stopping...");
+                        error!(
+                            "[SENDER {}] Channel error on next conn, stopping...",
+                            self.id
+                        );
                         return Err(ServerError::ChannelError);
                     }
                 }
@@ -198,6 +208,10 @@ impl NextConnection {
                         self.add_data_to_diff(diff);
                         let result = self.connect_to_new_conn(message.sender_id);
                         if result.is_err() {
+                            error!(
+                                "[SENDER {}] New connection {} went offline again, ignoring...",
+                                self.id, message.sender_id
+                            );
                             continue;
                         }
                         let new_conn = result.unwrap();
@@ -212,6 +226,10 @@ impl NextConnection {
                         }
                         self.next_id = message.sender_id;
                         self.connection = Some(new_conn);
+                        info!(
+                            "[SENDER {}] Next connection is now {}",
+                            self.id, self.next_id
+                        );
                     }
                     message.passed_by.insert(self.id);
                     if self.send_message(message).is_err() {
@@ -358,12 +376,18 @@ impl NextConnection {
     }
 
     fn send_message(&mut self, message: ServerMessage) -> Result<(), ServerError> {
-        let message = serialize(&message)?;
+        let message_bytes = serialize(&message)?;
         if let Some(connection) = self.connection.as_mut() {
-            thread::sleep(Duration::from_millis(1000));
-            if task::block_on(connection.send(&message[..])).is_err() {
+            sleep(Duration::from_millis(1000));
+            debug!("[SENDER {}] Sending message {:?}", self.id, message);
+            if task::block_on(connection.send(&message_bytes[..])).is_err() {
+                error!(
+                    "[SENDER {}] Lost connection to next {}",
+                    self.id, self.next_id
+                );
                 self.connection = None;
                 self.connection_status.lock()?.set_next_offline();
+                self.next_id = self.id;
                 return Err(ServerError::ConnectionLost);
             }
             return Ok(());

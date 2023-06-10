@@ -68,6 +68,8 @@ impl PrevConnection {
                     let to_id = self.listening_to_id.unwrap_or(self.my_id);
                     self.to_next_sender
                         .send(create_maybe_we_lost_the_token_message(self.my_id, to_id))?;
+                } else {
+                    info!("[PREVIOUS CONNECTION] Previous connection died but i have the token");
                 }
                 return Err(ConnectionError::ConnectionLost);
                 //}
