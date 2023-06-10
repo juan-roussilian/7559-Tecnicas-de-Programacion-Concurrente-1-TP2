@@ -23,4 +23,5 @@ pub trait AccountsManager {
     fn cancel_requested_points(&self, account_id: usize) -> Result<(), ServerError>;
     fn get_most_recent_update(&self) -> u128;
     fn get_accounts_updated_after(&self, timestamp: u128) -> Vec<UpdatedAccount>;
+    fn clear_reservations(&self);
 }

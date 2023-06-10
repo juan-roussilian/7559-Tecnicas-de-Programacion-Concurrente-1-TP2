@@ -49,15 +49,13 @@ impl AccountsManager for MemoryAccountsManager {
         Err(ServerError::AccountNotFound)
     }
     fn cancel_requested_points(&self, account_id: usize) -> Result<(), ServerError> {
-        if self.accounts.contains_key(&account_id) {
-            if let Some(account) = self.accounts.get(&account_id) {
-                let mut account_guard = account.write()?;
-                account_guard.cancel_reservation();
-            }
-        } else {
-            return Err(ServerError::AccountNotFound);
+        if let Some(account) = self.accounts.get(&account_id) {
+            let mut account_guard = account.write()?;
+            account_guard.cancel_reservation();
+            return Ok(());
         }
-        Ok(())
+
+        Err(ServerError::AccountNotFound)
     }
 
     fn substract_points(
@@ -66,16 +64,13 @@ impl AccountsManager for MemoryAccountsManager {
         points: usize,
         operation_time: Option<u128>,
     ) -> Result<(), ServerError> {
-        if self.accounts.contains_key(&account_id) {
-            if let Some(account) = self.accounts.get(&account_id) {
-                if let Ok(mut account_guard) = account.write() {
-                    account_guard.substract_points(points, operation_time)?;
-                }
-            }
-        } else {
-            return Err(ServerError::AccountNotFound);
+        if let Some(account) = self.accounts.get(&account_id) {
+            let mut account_guard = account.write()?;
+            account_guard.substract_points(points, operation_time)?;
+            return Ok(());
         }
-        Ok(())
+
+        Err(ServerError::AccountNotFound)
     }
     fn update(
         &self,
@@ -83,20 +78,17 @@ impl AccountsManager for MemoryAccountsManager {
         points: usize,
         operation_time: u128,
     ) -> Result<(), ServerError> {
-        if self.accounts.contains_key(&account_id) {
-            if let Some(account) = self.accounts.get(&account_id) {
-                if let Ok(mut account_guard) = account.write() {
-                    account_guard.update(points, operation_time)?;
-                }
-            }
-        } else {
-            return Err(ServerError::AccountNotFound);
+        if let Some(account) = self.accounts.get(&account_id) {
+            let mut account_guard = account.write()?;
+            account_guard.update(points, operation_time)?;
+            return Ok(());
         }
-        Ok(())
+
+        Err(ServerError::AccountNotFound)
     }
     fn get_most_recent_update(&self) -> u128 {
         let mut latest_update: u128 = 0;
-        for (_, account) in self.accounts.iter() {
+        for account in self.accounts.values() {
             if let Ok(guard) = account.read() {
                 let account_last_update = guard.last_updated_on();
                 if latest_update < account_last_update {
@@ -122,6 +114,14 @@ impl AccountsManager for MemoryAccountsManager {
             }
         }
         updated_accounts
+    }
+
+    fn clear_reservations(&self) {
+        for account in self.accounts.values() {
+            if let Ok(mut guard) = account.write() {
+                guard.cancel_reservation();
+            }
+        }
     }
 }
 

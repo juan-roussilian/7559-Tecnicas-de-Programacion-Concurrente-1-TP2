@@ -90,8 +90,8 @@ impl CoffeeMessageDispatcher {
                         return Err(ServerError::LockError);
                     }
                     let mut orders = orders.unwrap();
-                    orders.add(new_request.0, new_request.1); // TODO agregar de que cafetera
-                                                              // OrdersManager will be the one that sends the CoffeeMakerResponse through orders_request_sender channel in this case
+                    orders.add(new_request.0, new_request.1);
+                    // OrdersManager will be the one that sends the CoffeeMakerResponse through orders_request_sender channel in this case
                 }
 
                 _ => {
@@ -121,12 +121,12 @@ impl CoffeeMessageDispatcher {
 
             let machine_senders_guard = machine_response_senders.lock();
             if machine_senders_guard.is_err() {
-                error!("Unable to lock senders for sending response")
+                error!("Unable to lock senders for sending response");
             }
             let machine_senders = machine_senders_guard.unwrap();
             if let Some(sender) = machine_senders.get(&machine_id) {
                 if sender.send(response).is_err() {
-                    info!("Trying to send response through closed coffee maker channel")
+                    info!("Trying to send response through closed coffee maker channel");
                 }
             }
         }

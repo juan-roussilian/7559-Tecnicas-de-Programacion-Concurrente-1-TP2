@@ -131,7 +131,7 @@ impl NextConnection {
     fn try_to_connect_wait_if_offline(&mut self) -> Result<(), ServerError> {
         let mut wait = INITIAL_WAIT_IN_MS_FOR_CONNECTION_ATTEMPT;
         let most_recent_update = self.accounts_manager.lock()?.get_most_recent_update();
-        let message = create_new_connection_message(self.id, most_recent_update); // TODO obtener timestamp de cuenta con actualizacion last update 0 comienzo de fecha 1970
+        let message = create_new_connection_message(self.id, most_recent_update);
         loop {
             if self.connect_to_next(message.clone()).is_ok() {
                 return Ok(());
