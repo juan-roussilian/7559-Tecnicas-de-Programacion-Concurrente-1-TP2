@@ -245,7 +245,7 @@ impl NextConnection {
                     if !pending_sums.is_empty() {
                         token_data
                             .entry(self.id)
-                            .or_insert(pending_sums.clone())
+                            .or_insert(vec![])
                             .append(&mut pending_sums);
                     }
 
