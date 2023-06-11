@@ -1,8 +1,6 @@
 use std::{
     collections::HashSet,
     sync::{mpsc::Sender, Arc, Mutex},
-    thread,
-    time::Duration,
 };
 
 use async_std::task;

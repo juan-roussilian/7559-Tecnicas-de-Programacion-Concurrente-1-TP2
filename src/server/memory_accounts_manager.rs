@@ -4,10 +4,6 @@ use crate::errors::ServerError;
 use crate::server_messages::UpdatedAccount;
 use std::collections::hash_map::Entry::Vacant;
 use std::collections::HashMap;
-use std::fmt;
-use std::fmt::Formatter;
-use std::sync::Arc;
-use std::sync::RwLock;
 
 #[derive(Debug)]
 pub struct MemoryAccountsManager {

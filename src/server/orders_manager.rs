@@ -1,4 +1,4 @@
-use std::sync::{Arc, MutexGuard};
+use std::sync::{Arc};
 
 use lib::common_errors::ConnectionError;
 use lib::local_connection_messages::{
@@ -149,7 +149,7 @@ impl OrdersManager {
     fn handle_result_of_substract_order(
         &self,
         result: CoffeeMakerRequest,
-        accounts: &mut std::sync::MutexGuard<'_, memory_accounts_manager::MemoryAccountsManager>,
+        accounts: &mut std::sync::MutexGuard<'_, MemoryAccountsManager>,
         token: &mut TokenData,
     ) -> Result<(), ServerError> {
         match result.message_type {
