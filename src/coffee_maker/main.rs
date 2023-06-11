@@ -10,7 +10,7 @@ pub mod coffee_args;
 pub mod coffee_maker;
 pub mod constants;
 
-use std::env;
+use std::{collections::HashMap, env};
 
 use actix::Actor;
 use actix_rt::System;
@@ -55,7 +55,7 @@ pub fn main() {
     system.block_on(async {
         let reader = OrdersReader::new(args.orders_file_path);
         let reader_addr = reader.start();
-        let mut coffee_addresses = Vec::new();
+        let mut coffee_addresses = HashMap::new();
         for id in 0..DISPENSERS {
             let coffee_maker = CoffeeMaker::new(
                 reader_addr.clone(),
@@ -70,7 +70,7 @@ pub fn main() {
                 }
                 Ok(coffee_maker) => {
                     let coffee_maker_addr = coffee_maker.start();
-                    coffee_addresses.push(coffee_maker_addr);
+                    coffee_addresses.insert(id, coffee_maker_addr);
                 }
             }
         }

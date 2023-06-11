@@ -2,6 +2,7 @@ use log::error;
 
 use crate::errors::CoffeeMakerError;
 
+/// Representa a una orden leida del archivo, tiene el tipo de orden, la cuenta, y los puntos que da o quita
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Order {
     pub consumption_type: ConsumptionType,
@@ -9,6 +10,7 @@ pub struct Order {
     pub consumption: usize,
 }
 
+/// Los tipos de pedidos que puede haber
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum ConsumptionType {
     Points,

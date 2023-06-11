@@ -3,11 +3,13 @@ use mockall::automock;
 
 use rand::Rng;
 
+/// Interfaz del generador de chances de exito de un pedido
 #[cfg_attr(test, automock)]
 pub trait Randomizer {
     fn get_random_success(&self) -> bool;
 }
 
+/// Generador de chances de exito de un pedido real.
 pub struct RealRandomizer {
     success_chance: i32,
 }

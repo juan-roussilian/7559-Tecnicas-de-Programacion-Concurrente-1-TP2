@@ -9,9 +9,7 @@ use actix_rt::System;
 use async_std::sync::Mutex;
 use log::{debug, error};
 
-use crate::actor_messages::{
-    ErrorOpeningFile, FinishedFile, OpenedFile, ProcessOrder, ReadAnOrder,
-};
+use crate::actor_messages::{OpenedFile, ProcessOrder, ReadAnOrder};
 use crate::constants::PROCESS_ORDER_TIME_IN_MS;
 use crate::local_server_client::{LocalServer, LocalServerClient};
 use crate::order::{ConsumptionType, Order};
@@ -37,6 +35,8 @@ mod sync {
     }
 }
 
+/// Representa a una cafetera que procesa los pedidos. Tiene la direccion del lector,
+/// la conexion con el servidor, un generador de exitos de pedidos y su id
 pub struct CoffeeMaker {
     reader_addr: Addr<OrdersReader>,
     server_conn: Arc<Mutex<Box<dyn LocalServerClient>>>,
@@ -108,18 +108,6 @@ impl Actor for CoffeeMaker {
     type Context = Context<Self>;
 }
 
-impl Handler<ErrorOpeningFile> for CoffeeMaker {
-    type Result = ();
-
-    fn handle(&mut self, _msg: ErrorOpeningFile, ctx: &mut Context<Self>) -> Self::Result {
-        debug!(
-            "[COFFEE MAKER {}] Received message of error opening file",
-            self.id
-        );
-        self.stop_system(ctx);
-    }
-}
-
 impl Handler<OpenedFile> for CoffeeMaker {
     type Result = ();
 
@@ -129,15 +117,6 @@ impl Handler<OpenedFile> for CoffeeMaker {
             self.id
         );
         self.send_message(ReadAnOrder(self.id));
-    }
-}
-
-impl Handler<FinishedFile> for CoffeeMaker {
-    type Result = ();
-
-    fn handle(&mut self, _msg: FinishedFile, ctx: &mut Context<Self>) -> Self::Result {
-        debug!("[COFFEE MAKER {}] Received message to finish", self.id);
-        self.stop_system(ctx);
     }
 }
 
