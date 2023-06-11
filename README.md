@@ -173,7 +173,7 @@ Pasamos ahora a ver los diferentes mensajes que pueden estar circulando por la r
 pub struct ServerMessage {
     pub message_type: ServerMessageType, // El tipo de mensaje
     pub sender_id: usize,                // Quien envio el mensaje
-    pub passed_by: HashSet<usize>,       // Por quien paso el mensaje
+    pub passed_by: HashSet<usize>,       // Por quien paso el mensaje, si ya estoy en esta lista se descarta
 }
 ```
 
@@ -221,6 +221,39 @@ Este otro ejemplo muestra el comportamiento cuando se tiene una red con 4 servid
 
 ##### Mensaje Token
 
+El mensaje del token es enviado a la red por primera vez por el 0. Este mensaje incluye los siguientes datos.
+
+```rust
+type TokenData =  HashMap<usize, Vec<AccountAction>>
+
+struct AccountAction {
+    pub message_type: MessageType,
+    pub account_id: usize,
+    pub points: usize,
+    pub last_updated_on: u128,
+}
+```
+El mapa tiene de clave el id del servidor que hizo los cambios y de valor los cambios realizados (las sumas o restas).
+
+![Circulación del token](docs/token-circulando.png)
+En la imagen se puede ver como se va pasando el token entre los nodos según el orden.
+
+Los pasos que se ejecutan son los siguientes:
+1. Recibo el mensaje de tipo Token desde mi conexión previa `PrevConnection`.
+    * Si `PrevConnection` es una nueva conexión establezco el id de quien me envió el token como mi conexión previa.
+    * Marco el estado del server como que tiene el token.
+    * Limpio el token de mis datos previos y me actualizo con las modificaciones de los otros servidores. *Si algún servidor se perdió en el medio y no limpio sus datos, se evita que se repitan las operaciones con el campo de la fecha de actualización.*
+2. Le paso el token a `OrdersManager` por un channel.
+    * Este va a ejecutar todas las operaciones que se hayan cargado en `OrdersQueue` hasta que se recibió el token. 
+    * Las operaciones de suma (son reducidas si son sobre la misma cuenta)
+    * Responde si se pueden hacer las de resta
+    * Espera al resultado de los pedidos de resta (**espera por cierto tiempo**, si las cafeteras tardan en responder sale por timeout) y ejecutar la resta
+    * Los cambios quedan en la base local y en el token. Se ejecuta 
+3. Se envía el token a `NextConnection` por un channel.
+    * Si tiene guardadas **sumas de una perdida de conexión con el token** previa las agrega al nuevo token. (Solo guarda las sumas, las restas no se consideran válidas si se perdió la conexión con el token)
+    * Envía el mensaje a la siguiente conexión. Si el envío falla, intenta con los siguientes. 
+    * Si no logra enviarlo a alguien (crear una nueva conexión) se considera que se perdió la conexión con el token y nos guardamos las sumas.
+    * Marcamos que no tenemos el token y se guarda una copia del token si efectivamente se envió.
 
 ##### Mensaje Maybe We Lost The Token
 
