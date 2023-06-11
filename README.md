@@ -137,14 +137,12 @@ Pasando a los mensajes usados, se buscó tener un formato bien definido que sea 
 
 ```rust
 pub struct CoffeeMakerRequest {
-
     pub message_type: MessageType,
     pub account_id: usize,
     pub points: usize,
 }
 
 pub struct CoffeeMakerResponse {
-
     pub message_type: MessageType,
     pub status: ResponseStatus,
 }
@@ -155,7 +153,79 @@ pub struct CoffeeMakerResponse {
 * A los bytes enviados se le agrega al final el byte `;` para leer hasta ese punto.
 
 
+
 ### Servidor local
+
+Cada sucursal de la cadena de café *CoffeeGPT* cuenta con su propio servidor local. 
+Estos servidores locales tienen las conexiones con las cafeteras, las cuentas de los clientes, y controlan el acceso a los datos entre sí.
+
+#### Comunicación
+
+Para la comunicación entre los servidores elegimos usar el algoritmo *Token Ring* debido a que se resuelve la comunicación de forma sencilla. 
+Cada servidor envía mensajes al siguiente y recibe del anterior en el anillo. Se puede ver en el diagrama de la arquitectura.
+
+Al usar este modelo tenemos N conexiones (donde N es la cantidad de servidores), 
+por lo que se vuelve una opción viable estar manteniendo esas conexiones en TCP, y de esta forma resolver el problema de asegurar que lleguen los mensajes. *Nota: Nuevamente, veremos que está la interfaz de ConnectionProtocol, por lo que se puede intercambiar.*
+
+Pasamos ahora a ver los diferentes mensajes que pueden estar circulando por la red.
+
+```rust
+pub struct ServerMessage {
+    pub message_type: ServerMessageType, // El tipo de mensaje
+    pub sender_id: usize,                // Quien envio el mensaje
+    pub passed_by: HashSet<usize>,       // Por quien paso el mensaje
+}
+```
+
+##### Mensaje New Connection
+El mensaje de `NewConnection` es el usado para indicar que hay una nueva conexión en la red. 
+Se lanza al inicio cuando se levanta la red y cuando se quiere reconectar un servidor que estaba caído.
+
+Este mensaje incluye los siguientes datos:
+
+```rust
+pub struct Diff {
+    pub last_update: u128,              // Timestamp de la más reciente actualización que se tiene en la base
+    pub changes: Vec<UpdatedAccount>,   // Cuentas actualizadas en base a la actualización
+}
+```
+
+Veamos el funcionamiento con unos ejemplos.
+
+
+En este diagrama podemos ver el comportamiento cuando se está levantando una red con 3 servidores.
+
+![Comienzo de red](docs/inicio-conexion.png)
+1. En este paso se levantó al servidor 0. Intento conectarse con 1 y 2 pero no lo logro, por lo que se conecta consigo mismo para que empiece a circular el token. Esto solo puede pasar al comienzo y con 0.
+2. Se levanta el servidor 1. 
+    1. Este intenta conectarse con 2 y no pudo, se conecta con 0. 
+    2. Le envía el mensaje de NewConnection con fecha de última actualización 0 (no tiene nada guardado). 
+    3. 0 al recibir el mensaje establece conexión con 1 y luego cierra con `CloseConnection` su propia conexión con 0. El cierre lo hace luego de establecida la conexión con 1 en caso de que se haya caído.
+    4. El token está circulando entre estos dos nodos ahora.
+3. El proceso se repite, con la diferencia que 0 pasa el mensaje a 1 debido a que 2 no está entre el 0 y 1.
+4. La red luego de levantados los servidores.
+
+Este otro ejemplo muestra el comportamiento cuando se tiene una red con 4 servidores y uno estaba caído.
+
+![Se vuelve a conectar un servidor caído](docs/nueva-conexion-servidor-caido.png)
+1. Estado inicial, la red formada del lado izquierdo y el nodo 2 sin conexión. El nodo 2 se encuentra en un *exponential backoff* intentando conectarse a la red. (Reintenta cada cierto tiempo conectarse, si falla duplica el tiempo para reintentar. Tiene un límite de `MAX_WAIT_IN_MS_FOR_CONNECTION_ATTEMPT`)
+2. Le vuelve la conexión a 2 y se logra conectar con 3. En este mensaje manda la fecha más reciente del último cambio que tenga. Supongamos `1686509823`
+    1. 3 reenvía el mensaje a 0 dado que 2 no está entre él y 0. Se agrega a la lista de por quienes paso el mensaje.
+    2. 0 lo reenvía a 1 por los mismos motivos y se agrega a la lista de por quienes paso.
+3. 1 recibe el mensaje y ve que 2 está entre 1 y 3. Debe de cambiar su siguiente
+    1. Agrega los cuentas cuya actualización más reciente sea mayor a `1686509823`.
+    2. Se conecta con 2 pasándole los datos agregados. 2 pisa las cuentas modificadas con estos cambios
+    3. 1 cierra su conexión con 3 con un `CloseConnection`
+4. La red quedó nuevamente formada
+
+
+##### Mensaje Token
+
+
+##### Mensaje Maybe We Lost The Token
+
+#### Modelo
+
 
 ## Dificultades encontradas
 
