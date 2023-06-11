@@ -30,7 +30,7 @@ impl AccountsManager for MemoryAccountsManager {
                 e.insert(new_account);
             }
         } else if let Some(account) = self.accounts.get_mut(&account_id) {
-            &account.add_points(points, operation_time)?;
+            account.add_points(points, operation_time)?;
         }
         Ok(())
     }

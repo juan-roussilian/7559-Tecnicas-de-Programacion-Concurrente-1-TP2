@@ -55,7 +55,7 @@ impl PrevConnection {
     pub fn listen(&mut self) -> Result<(), ConnectionError> {
         loop {
             let encoded = task::block_on(self.connection.recv());
-            if let Err(e) = encoded {
+            if encoded.is_err() {
                 //if e == ConnectionError::ConnectionLost { // TODO revisar
                 warn!("[PREVIOUS CONNECTION] Previous connection died");
                 self.connection_status.lock()?.set_prev_offline();
