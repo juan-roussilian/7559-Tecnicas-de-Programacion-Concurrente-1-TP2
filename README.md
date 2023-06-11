@@ -292,6 +292,12 @@ En el diagrama se puede ver:
 
 
 ## Dificultades encontradas
+A lo largo del desarrollo del Trabajo Práctico, nos encontramos con las siguientes dificultades:
+
+* Fue difícil elegir entre algoritmos que serían aplicables a la arquitectura distribuida de los servidores de cafetería. Originalmente habíamos pensado en un algoritmo del tipo Bully, donde uno de los servidores es el líder del estado de las cuentas, pero terminamos optando más tarde por Token Ring por tener aparentemente menor dificultad de implementación, y por cantidad de conexiones simultáneas a abrir.
+* También tuvimos que debatir en varias instancias si utilizar conexiones TCP o UDP. Decidimos ir por TCP para no tener que implementar una capa de confiabilidad arriba de UDP. Creemos que esta elección también se ve justificada por la arquitectura de Token Ring, donde tenemos pocas conexiones simultáneas y por lo tanto no ahorraríamos tanto con UDP, como si podría ser en el caso de necesitar N^2 conexiones totales. De todas formas creamos una abstracción arriba de nuestras conexiones que nos podría permitir probar otros protocolos más adelante.
+* Las situaciones distribuidas implicaron considerar, probar y reflexionar acerca de docenas de casos bordes posibles, así como la forma de manejarlos. Además recrear estos casos bordes levantando varias instancias de las aplicaciones y analizando logs, puede resultar un proceso largo.
+* Tuvimos que enfrentar cierta curva de aprendizaje inherente a las librerías async y al propio lenguaje Rust.
 
 ## Documentación
 La documentación de la aplicación se puede ver con:
