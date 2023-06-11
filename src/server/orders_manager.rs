@@ -4,9 +4,10 @@ use lib::common_errors::ConnectionError;
 use lib::local_connection_messages::{
     CoffeeMakerRequest, CoffeeMakerResponse, MessageType, ResponseStatus,
 };
-use log::{debug, error};
+use log::{debug, error, info};
 use std::sync::mpsc::{Receiver, RecvTimeoutError, Sender};
 use std::sync::Mutex;
+use std::thread;
 
 use crate::accounts_manager::AccountsManager;
 use crate::constants::{COFFEE_RESULT_TIMEOUT_IN_MS, POST_INITIAL_TIMEOUT_COFFEE_RESULT_IN_MS};
@@ -48,6 +49,16 @@ impl OrdersManager {
     }
 
     pub fn handle_orders(&mut self) -> Result<(), ServerError> {
+
+        let accounts_manager_clone = self.accounts_manager.clone();
+        let account_print_handle = thread::spawn(move ||{
+            loop{
+                thread::sleep(Duration::from_secs(5));
+                let accounts = accounts_manager_clone.lock().unwrap();
+                info!("{:?}", accounts);
+            }
+        });
+
         loop {
             let mut timeout = Duration::from_millis(COFFEE_RESULT_TIMEOUT_IN_MS);
             let mut token = self.token_receiver.recv()?;

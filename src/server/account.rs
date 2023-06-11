@@ -1,5 +1,7 @@
 use crate::errors::ServerError;
 use std::time::{SystemTime, UNIX_EPOCH};
+
+#[derive(Debug)]
 pub struct Account {
     pub id: usize,
     points: usize,
