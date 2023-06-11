@@ -152,7 +152,12 @@ impl PrevConnection {
         );
         for update in &diff.changes {
             if let Ok(mut guard) = self.accounts_manager.lock() {
-                guard.update(update.id, update.amount, update.last_updated_on);
+                if guard
+                    .update(update.id, update.amount, update.last_updated_on)
+                    .is_err()
+                {
+                    warn!("unable to update accounts from diff")
+                }
             }
         }
     }
@@ -168,19 +173,29 @@ impl PrevConnection {
             for update in changes {
                 if update.message_type == MessageType::AddPoints {
                     if let Ok(mut guard) = self.accounts_manager.lock() {
-                        guard.add_points(
-                            update.account_id,
-                            update.points,
-                            Some(update.last_updated_on),
-                        );
+                        if guard
+                            .add_points(
+                                update.account_id,
+                                update.points,
+                                Some(update.last_updated_on),
+                            )
+                            .is_err()
+                        {
+                            warn!("Unable to handle add points message")
+                        }
                     }
                 } else if update.message_type == MessageType::TakePoints {
                     if let Ok(mut guard) = self.accounts_manager.lock() {
-                        guard.substract_points(
-                            update.account_id,
-                            update.points,
-                            Some(update.last_updated_on),
-                        );
+                        if guard
+                            .substract_points(
+                                update.account_id,
+                                update.points,
+                                Some(update.last_updated_on),
+                            )
+                            .is_err()
+                        {
+                            warn!("Unable to handle subtract points message")
+                        }
                     }
                 }
             }
