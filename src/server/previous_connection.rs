@@ -153,7 +153,7 @@ impl PrevConnection {
             diff
         );
         for update in &diff.changes {
-            if let Ok(guard) = self.accounts_manager.lock() {
+            if let Ok(mut guard) = self.accounts_manager.lock() {
                 guard.update(update.id, update.amount, update.last_updated_on);
             }
         }
@@ -177,7 +177,7 @@ impl PrevConnection {
                         );
                     }
                 } else if update.message_type == MessageType::TakePoints {
-                    if let Ok(guard) = self.accounts_manager.lock() {
+                    if let Ok(mut guard) = self.accounts_manager.lock() {
                         guard.substract_points(
                             update.account_id,
                             update.points,

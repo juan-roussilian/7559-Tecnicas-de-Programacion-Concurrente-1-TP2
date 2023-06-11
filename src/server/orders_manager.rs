@@ -12,6 +12,7 @@ use std::thread;
 use crate::accounts_manager::AccountsManager;
 use crate::constants::{COFFEE_RESULT_TIMEOUT_IN_MS, POST_INITIAL_TIMEOUT_COFFEE_RESULT_IN_MS};
 use crate::errors::ServerError;
+use crate::memory_accounts_manager;
 use crate::memory_accounts_manager::MemoryAccountsManager;
 use crate::orders_queue::OrdersQueue;
 use crate::server_messages::{recreate_token, AccountAction, ServerMessage, TokenData};
@@ -49,14 +50,11 @@ impl OrdersManager {
     }
 
     pub fn handle_orders(&mut self) -> Result<(), ServerError> {
-
         let accounts_manager_clone = self.accounts_manager.clone();
-        let account_print_handle = thread::spawn(move ||{
-            loop{
-                thread::sleep(Duration::from_secs(5));
-                let accounts = accounts_manager_clone.lock().unwrap();
-                info!("{:?}", accounts);
-            }
+        let account_print_handle = thread::spawn(move || loop {
+            thread::sleep(Duration::from_secs(5));
+            let accounts = accounts_manager_clone.lock().unwrap();
+            info!("{:?}", accounts);
         });
 
         loop {
@@ -128,7 +126,7 @@ impl OrdersManager {
                 let result = self.result_take_points_channel.recv_timeout(timeout);
                 match result {
                     Ok(result) => {
-                        self.handle_result_of_substract_order(result, &accounts, &mut token)?;
+                        self.handle_result_of_substract_order(result, &mut accounts, &mut token)?;
                     }
                     Err(RecvTimeoutError::Timeout) => {
                         there_was_a_timeout = true;
@@ -151,7 +149,7 @@ impl OrdersManager {
     fn handle_result_of_substract_order(
         &self,
         result: CoffeeMakerRequest,
-        accounts: &MutexGuard<MemoryAccountsManager>,
+        accounts: &mut std::sync::MutexGuard<'_, memory_accounts_manager::MemoryAccountsManager>,
         token: &mut TokenData,
     ) -> Result<(), ServerError> {
         match result.message_type {
