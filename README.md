@@ -256,6 +256,37 @@ Los pasos que se ejecutan son los siguientes:
     * Marcamos que no tenemos el token y se guarda una copia del token si efectivamente se envió.
 
 ##### Mensaje Maybe We Lost The Token
+Este mensaje se envía a través de la red cada vez que se detecta una perdida de conexión con el anterior. Nos damos cuenta de esta situación porque se perdió la conexión TCP, los casos que pueden estar ocurriendo son que el mismo nodo perdió su conexión o el anterior la perdió.
+
+* El mensaje enviado incluye el id de que servidor se cayó.
+* El mensaje tiene el nombre de `MaybeWeLostTheToken` debido a que lo que se busca es encontrar donde quedo el token al momento de la caida del servidor. Si algún servidor tiene el token no se perdió. Si nadie lo tiene se perdió en el servidor que se cayó.
+
+Empezamos con el algoritmo:
+1. Detecto la perdida de conexión con el anterior.
+    * Si yo tenía el token, no es necesario enviar el mensaje al siguiente. En todo caso, si yo perdí la conexión, fallara el envío del token y se manejara.
+    * Si yo no tenía el token, le paso el mensaje a `NextConnection` para que lo intente reenviar.
+2. En `NextConnection` revisamos si el que se cayó es al nodo al que se apunta. (Seguimos en el mismo nodo que el paso anterior)
+    * Si es así, nos conectamos con el siguiente y le pasamos una copia del último token que tenemos guardado. Si fallo el envío, perdimos la conexión.
+    * Si no es así, pasamos el mensaje al siguiente. Si falla este envío intentamos enviar el mensaje a alguien que esté entre nosotros y el nodo caído. En este caso, si falla con todos nosotros nos caímos.
+    * (Desde otro nodo) Si tenemos una conexión previa y fallan todos los que están en el medio, envío yo la copia del token al siguiente que pueda.
+3. Sí recibimos el mensaje en algún nodo siguiente
+    * Si `PrevConnection` es una nueva conexión, establezco el id de quien me envió el mensaje como mi conexión previa.
+    * Compruebo si yo tengo el token. Si lo tengo descarto el mensaje dado que no se perdió y la red se va a rearmar cuando lo pase al siguiente.
+    * Paso el mensaje a `NextConnection` (paso 2 pero desde este nodo)
+
+![Se cae un servidor, pero no se pierde el token](docs/perdida-servidor-sin-token.png)
+
+En la imagen se puede ver el caso en que se pierde la conexión de un nodo (el 2) pero el token sigue adentro de la red. El mensaje de MaybeWeLostTheToken circula hasta que alcanza al token en el nodo 1. En ese punto el nodo 1 lo descarta dado que no se perdió.
+
+
+![Perdida del token en un nodo](docs/perdida-de-token.png)
+
+En el diagrama se puede ver:
+1. El nodo 2 tiene el token
+2. El nodo 2 pierde la conexión y el nodo 3 se da cuenta de que perdió la conexión con 2. Reenvía el mensaje a 0.
+3. 0 recibe el mensaje y lo reenvía a 1.
+4. 1 recibe el mensaje y se da cuenta de que el que se cayó es al que apunta. Le envía la copia del token a 3.
+5. 3 Recibe la copia del token y sigue circulando por la red.
 
 #### Modelo
 
