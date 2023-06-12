@@ -48,18 +48,15 @@ impl AccountsManager for MemoryAccountsManager {
 
         Err(ServerError::AccountNotFound)
     }
-    fn update(
-        &mut self,
-        account_id: usize,
-        points: usize,
-        operation_time: u128,
-    ) -> Result<(), ServerError> {
+    fn update(&mut self, account_id: usize, points: usize, operation_time: u128) {
         if let Some(account) = self.accounts.get_mut(&account_id) {
-            account.update(points, operation_time)?;
-            return Ok(());
+            account.update(points, operation_time);
+            return;
         }
-
-        Err(ServerError::AccountNotFound)
+        self.accounts.insert(
+            account_id,
+            Account::new_from_update(account_id, points, operation_time),
+        );
     }
 
     fn request_points(&mut self, account_id: usize, points: usize) -> Result<(), ServerError> {

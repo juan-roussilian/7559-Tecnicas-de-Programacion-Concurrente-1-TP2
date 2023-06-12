@@ -8,7 +8,7 @@ use lib::{
     common_errors::ConnectionError, connection_protocol::ConnectionProtocol,
     local_connection_messages::MessageType, serializer::deserialize,
 };
-use log::{debug, info, warn};
+use log::{debug, error, info, warn};
 
 use crate::{
     accounts_manager::AccountsManager,
@@ -154,12 +154,7 @@ impl PrevConnection {
         );
         for update in &diff.changes {
             if let Ok(mut guard) = self.accounts_manager.lock() {
-                if guard
-                    .update(update.id, update.amount, update.last_updated_on)
-                    .is_err()
-                {
-                    warn!("unable to update accounts from diff")
-                }
+                guard.update(update.id, update.amount, update.last_updated_on);
             }
         }
     }
@@ -183,7 +178,7 @@ impl PrevConnection {
                             )
                             .is_err()
                         {
-                            warn!("Unable to handle add points message")
+                            warn!("Unable to handle add points message");
                         }
                     }
                 } else if update.message_type == MessageType::TakePoints {
@@ -196,7 +191,7 @@ impl PrevConnection {
                             )
                             .is_err()
                         {
-                            warn!("Unable to handle subtract points message")
+                            warn!("Unable to handle subtract points message");
                         }
                     }
                 }

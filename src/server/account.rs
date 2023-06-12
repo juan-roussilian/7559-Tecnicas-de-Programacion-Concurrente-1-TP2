@@ -23,6 +23,15 @@ impl Account {
         }
     }
 
+    pub fn new_from_update(id: usize, points: usize, last_updated_on: u128) -> Self {
+        Account {
+            id,
+            points,
+            last_updated_on: last_updated_on,
+            is_reserved: false,
+        }
+    }
+
     pub fn points(&self) -> usize {
         self.points
     }
@@ -82,14 +91,9 @@ impl Account {
             }
         }
     }
-    pub fn update(&mut self, points: usize, operation_time: u128) -> Result<(), ServerError> {
-        if self.last_updated_on < operation_time {
-            self.points = points;
-            self.last_updated_on = operation_time;
-            Ok(())
-        } else {
-            Err(ServerError::OperationIsOutdated)
-        }
+    pub fn update(&mut self, points: usize, operation_time: u128) {
+        self.points = points;
+        self.last_updated_on = operation_time;
     }
 
     pub fn cancel_reservation(&mut self) {

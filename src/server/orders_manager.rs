@@ -49,12 +49,13 @@ impl OrdersManager {
     }
 
     pub fn handle_orders(&mut self) -> Result<(), ServerError> {
-        let accounts_manager_clone = self.accounts_manager.clone();
-        let _account_print_handle = thread::spawn(move || loop {
-            thread::sleep(Duration::from_secs(5));
-            let accounts = accounts_manager_clone.lock().unwrap();
-            info!("{:?}", accounts);
-        });
+        // Uncomment to see accounts data
+        // let accounts_manager_clone = self.accounts_manager.clone();
+        // let _account_print_handle = thread::spawn(move || loop {
+        //     thread::sleep(Duration::from_secs(5));
+        //     let accounts = accounts_manager_clone.lock().unwrap();
+        //     info!("{:?}", accounts);
+        // });
 
         loop {
             let mut timeout = Duration::from_millis(COFFEE_RESULT_TIMEOUT_IN_MS);
