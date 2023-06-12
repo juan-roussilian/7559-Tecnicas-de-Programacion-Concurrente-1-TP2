@@ -236,6 +236,7 @@ struct AccountAction {
 El mapa tiene de clave el id del servidor que hizo los cambios y de valor los cambios realizados (las sumas o restas).
 
 ![Circulación del token](docs/token-circulando.png)
+
 En la imagen se puede ver como se va pasando el token entre los nodos según el orden.
 
 Los pasos que se ejecutan son los siguientes:
@@ -274,9 +275,14 @@ Empezamos con el algoritmo:
     * Compruebo si yo tengo el token. Si lo tengo descarto el mensaje dado que no se perdió y la red se va a rearmar cuando lo pase al siguiente.
     * Paso el mensaje a `NextConnection` (paso 2 pero desde este nodo)
 
+
+Veamos algunos ejemplos:
+
+
 ![Se cae un servidor, pero no se pierde el token](docs/perdida-servidor-sin-token.png)
 
 En la imagen se puede ver el caso en que se pierde la conexión de un nodo (el 2) pero el token sigue adentro de la red. El mensaje de MaybeWeLostTheToken circula hasta que alcanza al token en el nodo 1. En ese punto el nodo 1 lo descarta dado que no se perdió.
+
 
 
 ![Perdida del token en un nodo](docs/perdida-de-token.png)
@@ -294,10 +300,15 @@ En el diagrama se puede ver:
 ## Dificultades encontradas
 A lo largo del desarrollo del Trabajo Práctico, nos encontramos con las siguientes dificultades:
 
-* Fue difícil elegir entre algoritmos que serían aplicables a la arquitectura distribuida de los servidores de cafetería. Originalmente habíamos pensado en un algoritmo del tipo Bully, donde uno de los servidores es el líder del estado de las cuentas, pero terminamos optando más tarde por Token Ring por tener aparentemente menor dificultad de implementación, y por cantidad de conexiones simultáneas a abrir.
-* También tuvimos que debatir en varias instancias si utilizar conexiones TCP o UDP. Decidimos ir por TCP para no tener que implementar una capa de confiabilidad arriba de UDP. Creemos que esta elección también se ve justificada por la arquitectura de Token Ring, donde tenemos pocas conexiones simultáneas y por lo tanto no ahorraríamos tanto con UDP, como si podría ser en el caso de necesitar N^2 conexiones totales. De todas formas creamos una abstracción arriba de nuestras conexiones que nos podría permitir probar otros protocolos más adelante.
-* Las situaciones distribuidas implicaron considerar, probar y reflexionar acerca de docenas de casos bordes posibles, así como la forma de manejarlos. Además recrear estos casos bordes levantando varias instancias de las aplicaciones y analizando logs, puede resultar un proceso largo.
+* Fue difícil elegir entre los distintos algoritmos vistos cuál aplicar a la arquitectura distribuida de los servidores de cafetería. Originalmente habíamos pensado en un algoritmo centralizado con elección mediante Bully, pero al analizar en mayor profundidad diferentes casos borde con este algoritmo terminamos optando por Token Ring por tener aparentemente menor dificultad de implementación, y por cantidad de conexiones simultáneas a abrir.
+* También tuvimos que debatir en varias instancias si utilizar conexiones TCP o UDP. Decidimos ir por TCP para no tener que implementar una capa de confiabilidad arriba de UDP. Creemos que esta elección también se ve justificada por la arquitectura de Token Ring, donde tenemos pocas conexiones simultáneas y, por lo tanto, no ahorraríamos tanto con UDP, como si podría ser en el caso de necesitar $N^2$ conexiones totales. De todas formas creamos una abstracción arriba de nuestras conexiones que nos podría permitir probar otros protocolos más adelante.
+* Las situaciones distribuidas implicaron considerar, probar y reflexionar acerca de docenas de casos bordes posibles, así como la forma de manejarlos. Recrear estos casos bordes levantando varias instancias de las aplicaciones y analizando logs puede resultar un proceso largo.
 * Tuvimos que enfrentar cierta curva de aprendizaje inherente a las librerías async y al propio lenguaje Rust.
+
+## Mejoras
+Mencionamos algunas mejoras posibles o pendientes que se pueden hacer sobre la implementación actual:
+* Mejorar la performance en los pedidos de resta. Actualmente, si hay pedidos de resta en alguna cafetera se espera un tiempo (puede salir por timeout) para obtener el resultado del café y así guardar el cambio. Esto se podría mejorar respondiendo a la cafetera si puede hacer o no el café, si puede hacerlo bloquear esos puntos y comunicar ese bloqueo a través del token (se pasa al siguiente). La cafetera responderá en algún momento el resultado, el servidor lo guardará, y cuando tenga el token nuevamente se restaran o liberaran los puntos afectados. Este resultado sería luego comunicado. Con este cambio se mejora el fairness del sistema.
+* Poder manejar múltiples restas sobre una misma cuenta en el mismo servidor. Actualmente, se termina ejecutando la primera que reserve la cuenta. Se podría ir llevando un registro de puntos potencialmente consumidos para permitir múltiples consumos sobre esa cuenta en el mismo servidor.
 
 ## Documentación
 La documentación de la aplicación se puede ver con:
