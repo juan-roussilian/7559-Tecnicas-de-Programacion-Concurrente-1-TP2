@@ -133,12 +133,13 @@ impl Handler<ReadAnOrder> for OrdersReader {
         match self.file.as_ref() {
             Some(file) => wrap_future::<_, Self>(read_line_from_file(file.clone(), msg.0))
                 .map(send_message_depending_on_result)
-                .wait(ctx),
+                .spawn(ctx),
+
             None => {
                 error!("[READER] File should be present, stopping...");
                 wrap_future::<_, Self>(ready(OrdersReaderState::ErrorReading))
                     .map(send_message_depending_on_result)
-                    .wait(ctx)
+                    .spawn(ctx)
             }
         }
     }
