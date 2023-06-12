@@ -296,6 +296,28 @@ En el diagrama se puede ver:
 
 #### Modelo
 
+![Modelo del servidor](docs/modelo-servidor.png)
+
+Relaciones faltantes del diagrama anterior
+
+![Comunicación de mensajes](docs/modelo-servidor-2.png)
+
+En los diagramas podemos ver el modelo y relaciones que tiene el servidor. Explicamos su función:
+* `ConnectionServer` representa a un servidor genérico. La implementación actual es de un servidor TCP. Se puede llegar a intercambiar con UDP.
+* `CoffeeMakerServer` es el servidor de las cafeteras. Maneja las conexiones entrantes de las cafeteras. Recibe las conexiones y les crea un hilo para manejar esa conexión en particular en `CoffeeMakerConnection`.
+* `LocalServer` es la entidad central del servidor. Inicializa las partes de la aplicación y se pone a escuchar por conexiones entrantes a través de su `ConnectionServer`.
+* `ConnectionProtocol` es la interfaz mencionada previamente en la cafetera. Se reutiliza la implementación de TCP en el servidor.
+* `PreviousConnecton` maneja los mensajes recibidos de la conexión anterior. En el segundo diagrama podemos ver que puede llegar a pasar los mensajes al `NextConnection`, o al `OrdersManager` en caso del token. Esta conexión es inicializada por `LocalServer`.
+* `NextConnection` es el encargado de enviar los mensajes a la siguiente conexión en el anillo. Al enviar los mensajes es el que termina determinando si el servidor tiene conexión o no.
+* `OrdersDispatcher` es un manejador intermedio que recibe los mensajes de las cafeteras (enviados por un canal desde `CoffeeMakerConnection`). Esta estructura tiene la lógica para determinar la respuesta a un pedido. Se decidió separar esta lógica para no acoplarse a la función que cumple la conexión con la cafetera.
+    * Si es suma, resta o cancelar el bloqueo de los puntos, la respuesta es siempre OK
+    * Si es pedido de bloqueo de puntos, pone la respuesta en espera. (Si no se tiene conexion se le responde que no)
+* `OrdersManager` realiza los pedidos recibidos y responde a los pedidos de puntos. Esta entidad se ejecuta cada vez que se recibe el token por el channel. Al recibir el token, agarra los pedidos cargados en `OrdersQueue` y los realiza. Agrega los cambios al token.
+* `OrdersQueue` almacena los pedidos se suma y pedidos de querer restar. Son agregados por el `OrdersDispatcher` y sacados por el `OrdersManager`. La cola tiene una optimación en los pedidos de suma al reducirlos si se estan haciendo sobre una misma cuenta.
+* `OfflineOrdersCleaner` en caso de perder la conexión se deben de limpiar y responder a las cafeteras los pedidos de resta. Esta función es ejecutada por el `NextConnection` pasado un tiempo de detectada la perdida de conexión.
+* `AccountsManager` es una interfaz hacia la base de datos de los puntos. En la implementación se tiene solamente `InMemoryAccountsManager` que representa y realiza las acciones con un mapa en memoria.
+* `Account` representa a una cuenta familiar.
+
 
 ## Dificultades encontradas
 A lo largo del desarrollo del Trabajo Práctico, nos encontramos con las siguientes dificultades:
