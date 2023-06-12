@@ -59,7 +59,7 @@ impl CoffeeMaker {
             id,
         })
     }
-
+    
     fn send_message<ToReaderMessage>(&self, msg: ToReaderMessage)
     where
         OrdersReader: Handler<ToReaderMessage>,
@@ -74,7 +74,8 @@ impl CoffeeMaker {
             System::current().stop();
         }
     }
-
+    /// Handler de resultados que retorna el servidor a traves de su cliente y detiene la cafetera
+    /// en caso de no poder conectarse a este
     fn handle_server_result(
         &mut self,
         result: Result<(), ConnectionError>,
@@ -97,7 +98,7 @@ impl CoffeeMaker {
             }
         }
     }
-
+    /// Detiene el sistema de la cafetera
     fn stop_system(&mut self, ctx: &mut Context<Self>) {
         ctx.stop();
         System::current().stop();
@@ -146,7 +147,7 @@ impl Handler<ProcessOrder> for CoffeeMaker {
         }
     }
 }
-
+/// Metodo para comunicar al actor de cliente de servidor que debe sumar puntos a una cuenta del servidor
 async fn add_points(
     order: Order,
     server: Arc<Mutex<Box<dyn LocalServerClient>>>,
@@ -164,7 +165,8 @@ async fn add_points(
         .add_points(order.account_id, order.consumption)
         .await
 }
-
+/// Metodo para comunicar al actor de cliente de servidor que han sido consumidos puntos al servidor
+/// en caso de que la orden sea producida correctamente
 async fn consume_points(
     order: Order,
     server: Arc<Mutex<Box<dyn LocalServerClient>>>,

@@ -18,6 +18,7 @@ pub enum ConsumptionType {
 }
 
 impl Order {
+    /// Parsea una linea de texto a un objeto Order
     pub fn from_line(line: &str) -> Result<Order, CoffeeMakerError> {
         let line = remove_ending(line);
         let parts: Vec<&str> = line.splitn(3, ',').collect();

@@ -144,7 +144,8 @@ impl Handler<ReadAnOrder> for OrdersReader {
         }
     }
 }
-
+/// Lee una linea del archivo de pedidos, y retorna un estado dependiendo si esta es la ultima o no, 
+/// o si fallo la lectura.
 async fn read_line_from_file(
     file: Arc<Mutex<BufReader<File>>>,
     coffee_id: usize,
@@ -170,7 +171,7 @@ async fn read_line_from_file(
 
     OrdersReaderState::Reading(conversion_result.unwrap(), coffee_id)
 }
-
+/// Guardara el archivo de pedidos en caso de que este haya sido abierto sin errores y se lo comunica a los otros actores
 fn handle_opened_file(
     result: Result<File, std::io::Error>,
     me: &mut OrdersReader,
@@ -185,7 +186,7 @@ fn handle_opened_file(
     me.file = Some(Arc::new(Mutex::new(BufReader::new(result.unwrap()))));
     me.send_all(OpenedFile);
 }
-
+/// Enviara un mensaje a los dependiendo del estado del parser, el cual puede ser: error, leyendo/parseando y terminado.
 fn send_message_depending_on_result(
     result: OrdersReaderState,
     me: &mut OrdersReader,

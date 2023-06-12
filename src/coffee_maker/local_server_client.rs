@@ -63,6 +63,7 @@ async fn handle_request(
 
 #[async_trait]
 impl LocalServerClient for LocalServer {
+    /// Metodo mediante el cual la cafetera le pide al servidor que sume puntos a una cuenta
     async fn add_points(&self, account_id: usize, points: usize) -> Result<(), ConnectionError> {
         handle_request(
             self.connection.clone(),
@@ -72,6 +73,8 @@ impl LocalServerClient for LocalServer {
         )
         .await
     }
+
+    /// Metodo mediante el cual la cafetera le pide al servidor que reserve los puntos de una
     async fn request_points(
         &self,
         account_id: usize,
@@ -85,6 +88,8 @@ impl LocalServerClient for LocalServer {
         )
         .await
     }
+
+    /// Metodo mediante el cual la cafetera le pide al servidor que reste puntos a una cuenta
     async fn take_points(&self, account_id: usize, points: usize) -> Result<(), ConnectionError> {
         handle_request(
             self.connection.clone(),
@@ -94,6 +99,7 @@ impl LocalServerClient for LocalServer {
         )
         .await
     }
+    /// Metodo mediante el cual la cafetera le pide al servidor que cancele la reserva que realizo sobre los puntos de una cuenta
     async fn cancel_point_request(&self, account_id: usize) -> Result<(), ConnectionError> {
         handle_request(
             self.connection.clone(),
