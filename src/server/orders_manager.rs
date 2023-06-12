@@ -4,10 +4,10 @@ use lib::common_errors::ConnectionError;
 use lib::local_connection_messages::{
     CoffeeMakerRequest, CoffeeMakerResponse, MessageType, ResponseStatus,
 };
-use log::{debug, error, info};
+use log::{debug, error /*, info */};
 use std::sync::mpsc::{Receiver, RecvTimeoutError, Sender};
 use std::sync::Mutex;
-use std::thread;
+//use std::thread;
 
 use crate::accounts_manager::AccountsManager;
 use crate::constants::{COFFEE_RESULT_TIMEOUT_IN_MS, POST_INITIAL_TIMEOUT_COFFEE_RESULT_IN_MS};

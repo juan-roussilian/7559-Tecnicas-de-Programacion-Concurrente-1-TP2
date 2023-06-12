@@ -1,4 +1,3 @@
-use log::error;
 use std::time::SystemTimeError;
 
 #[derive(Debug)]

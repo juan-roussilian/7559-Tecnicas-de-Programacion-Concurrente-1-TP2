@@ -27,7 +27,7 @@ impl Account {
         Account {
             id,
             points,
-            last_updated_on: last_updated_on,
+            last_updated_on,
             is_reserved: false,
         }
     }
