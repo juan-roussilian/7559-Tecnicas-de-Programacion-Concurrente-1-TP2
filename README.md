@@ -344,7 +344,19 @@ Mencionamos algunas mejoras posibles o pendientes que se pueden hacer sobre la i
 * Poder manejar múltiples restas sobre una misma cuenta en el mismo servidor. Actualmente, se termina ejecutando la primera que reserve la cuenta. Se podría ir llevando un registro de puntos potencialmente consumidos para permitir múltiples consumos sobre esa cuenta en el mismo servidor.
 
 ## Documentación
-La documentación de la aplicación se puede ver con:
-```
-$ cargo doc --open
-```
+La documentación de la aplicación se puede ver con los siguientes comandos:
+
+*Para binarios "coffee_maker" o "server"*
+
+Build:
+`cargo doc --bin <nombre binario>`
+Open: 
+`cargo doc --bin <nombre binario --open`
+
+*Para modulos comunes entre ambos binarios de la lib*
+
+Build:
+`cargo doc `
+Open: 
+`cargo doc --open`
+
