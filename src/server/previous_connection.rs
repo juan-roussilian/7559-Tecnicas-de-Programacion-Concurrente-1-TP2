@@ -56,7 +56,6 @@ impl PrevConnection {
         loop {
             let encoded = task::block_on(self.connection.recv());
             if encoded.is_err() {
-                //if e == ConnectionError::ConnectionLost { // TODO revisar
                 warn!("[PREVIOUS CONNECTION] Previous connection died");
                 self.connection_status.lock()?.set_prev_offline();
                 if !*self.have_token.lock()? {
@@ -70,12 +69,15 @@ impl PrevConnection {
                     info!("[PREVIOUS CONNECTION] Previous connection died but i have the token");
                 }
                 return Err(ConnectionError::ConnectionLost);
-                //}
-                //return Ok(()); // Closed connection
             }
 
             let mut encoded = encoded.unwrap();
-            let mut message: ServerMessage = deserialize(&mut encoded)?;
+            let result = deserialize(&mut encoded);
+            if result.is_err() {
+                error!("[PREVIOUS CONNECTION] Error deserializing the message");
+                continue;
+            }
+            let mut message: ServerMessage = result.unwrap();
 
             match &mut message.message_type {
                 ServerMessageType::NewConnection(diff) => {

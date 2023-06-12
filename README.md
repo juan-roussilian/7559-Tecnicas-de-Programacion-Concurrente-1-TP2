@@ -55,7 +55,7 @@ La aplicación tiene las siguientes dependencias:
 * `log` y `simple_logger` para tener la interfaz de los logs *(error!(), info!(), debug!())* y una implementación que imprime los mensajes.
 * `async-std` para el manejo de tareas asincrónicas
 * `async-trait` para poder definir interfaces con métodos *async*
-* `bincode` y `serde` para serializar y deserializar a bytes los mensajes enviados.
+* `serde_json` y `serde` para serializar y deserializar a los mensajes enviados.
 
 
 ## Diseño e implementación
@@ -149,8 +149,8 @@ pub struct CoffeeMakerResponse {
 ```
 
 * `MessageType` y `ResponseStatus` son *enums* que tienen las distintas acciones/resultados.
-* Los *structs* son serializados y deserializados mediante el crate `bincode` y `serde`.
-* A los bytes enviados se le agrega al final el byte `;` para leer hasta ese punto.
+* Los *structs* son serializados y deserializados mediante el crate `serde_json` y `serde`.
+* A los bytes enviados se le agrega al final el byte `\n` para leer hasta ese punto.
 
 
 

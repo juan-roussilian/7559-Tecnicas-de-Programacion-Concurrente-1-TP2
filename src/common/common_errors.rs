@@ -10,8 +10,8 @@ pub enum ConnectionError {
     UnexpectedError,
 }
 
-impl From<Box<bincode::ErrorKind>> for ConnectionError {
-    fn from(_: Box<bincode::ErrorKind>) -> Self {
+impl From<serde_json::Error> for ConnectionError {
+    fn from(_: serde_json::Error) -> Self {
         ConnectionError::SerializationError
     }
 }

@@ -13,7 +13,7 @@ use crate::common_errors::ConnectionError;
 #[async_trait]
 pub trait ConnectionProtocol {
     async fn send(&mut self, data: &[u8]) -> Result<(), ConnectionError>;
-    async fn recv(&mut self) -> Result<Vec<u8>, ConnectionError>;
+    async fn recv(&mut self) -> Result<String, ConnectionError>;
 }
 
 pub struct TcpConnection {
@@ -72,9 +72,9 @@ impl ConnectionProtocol for TcpConnection {
             }
         }
     }
-    async fn recv(&mut self) -> Result<Vec<u8>, ConnectionError> {
-        let mut buffer = Vec::new();
-        match self.reader.read_until(b';', &mut buffer).await {
+    async fn recv(&mut self) -> Result<String, ConnectionError> {
+        let mut buffer = String::new();
+        match self.reader.read_line(&mut buffer).await {
             Ok(read) => {
                 if read == 0 {
                     info!(
