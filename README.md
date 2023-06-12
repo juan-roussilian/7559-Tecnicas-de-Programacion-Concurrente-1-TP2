@@ -318,6 +318,17 @@ En los diagramas podemos ver el modelo y relaciones que tiene el servidor. Expli
 * `AccountsManager` es una interfaz hacia la base de datos de los puntos. En la implementación se tiene solamente `InMemoryAccountsManager` que representa y realiza las acciones con un mapa en memoria.
 * `Account` representa a una cuenta familiar.
 
+#### Threads y comunicacion interna
+
+En el siguiente diagrama podemos ver los recursos compartidos y como es la comunicacion entre los hilos.
+
+![Hilos y recursos compartidos del servidor](docs/servidor-hilos.png)
+
+* Podemos ver que se utilizan canales para el envío de mensajes entre las distintas partes del sistema.
+* Se tienen locks de tipo mutex para compartir algunos estados, tales como si se tiene el token en la aplicación, si se está conectado, las cuentas, y la cola de pedidos.
+* Se tiene un mutex para almacenar las direcciones de respuesta de los resultados de pedidos de las cafeteras. Una alternativa analizada era usar otro mensaje para el envío de esta información.
+* El servidor local puede iniciar múltiples hilos de `PreviousConnection` durante la vida del servidor, pero siempre se va a mantener uno. Si se crea una nueva conexión va a esperar a que finalice la anterior.
+* El servidor de la cafetera `CoffeeMakerConnection` crea un hilo por cada nueva conexión de cafetera.
 
 ## Dificultades encontradas
 A lo largo del desarrollo del Trabajo Práctico, nos encontramos con las siguientes dificultades:
