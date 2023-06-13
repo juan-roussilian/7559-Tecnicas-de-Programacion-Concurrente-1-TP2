@@ -1,17 +1,17 @@
 use std::sync::{mpsc::Sender, Arc, Mutex};
 
 use lib::{
-    common_errors::ConnectionError,
+    common_errors::CoffeeSystemError,
     local_connection_messages::{CoffeeMakerResponse, MessageType, ResponseStatus},
 };
 
 use crate::{errors::ServerError, orders_queue::OrdersQueue};
 
+/// Limpador de ordenes de resta en caso de perdida de conexion
 pub struct SubstractOrdersCleaner {
     orders: Arc<Mutex<OrdersQueue>>,
     request_points_channel: Sender<(CoffeeMakerResponse, usize)>,
 }
-
 impl SubstractOrdersCleaner {
     pub fn new(
         orders: Arc<Mutex<OrdersQueue>>,
@@ -22,10 +22,11 @@ impl SubstractOrdersCleaner {
             request_points_channel,
         }
     }
+    /// Metodo para eliminar las ordenes de resta de puntos cuando no se tiene conexion por un tiempo
     pub fn clean_substract_orders_if_offline(&self) -> Result<(), ServerError> {
         let response = CoffeeMakerResponse {
             message_type: MessageType::RequestPoints,
-            status: ResponseStatus::Err(ConnectionError::UnexpectedError),
+            status: ResponseStatus::Err(CoffeeSystemError::UnexpectedError),
         };
 
         let discarded_orders = self.orders.lock()?.get_and_clear_request_points_orders();
@@ -39,7 +40,7 @@ impl SubstractOrdersCleaner {
 
 #[cfg(test)]
 mod tests {
-    use std::{sync::mpsc, time::Duration};
+    use std::sync::mpsc;
 
     use lib::local_connection_messages::CoffeeMakerRequest;
 

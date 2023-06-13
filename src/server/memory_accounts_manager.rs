@@ -4,11 +4,11 @@ use crate::errors::ServerError;
 use crate::server_messages::UpdatedAccount;
 use std::collections::hash_map::Entry::Vacant;
 use std::collections::HashMap;
-use std::sync::Arc;
-use std::sync::RwLock;
 
+#[derive(Debug)]
+/// Implementacion en memoria de manejador de cuentas
 pub struct MemoryAccountsManager {
-    accounts: HashMap<usize, Arc<RwLock<Account>>>,
+    accounts: HashMap<usize, Account>,
 }
 
 impl MemoryAccountsManager {
@@ -20,6 +20,7 @@ impl MemoryAccountsManager {
 }
 
 impl AccountsManager for MemoryAccountsManager {
+    /// Metodo que toma el lock de una cuenta e invoca su metodo de sumar puntos
     fn add_points(
         &mut self,
         account_id: usize,
@@ -28,99 +29,89 @@ impl AccountsManager for MemoryAccountsManager {
     ) -> Result<(), ServerError> {
         if let Vacant(e) = self.accounts.entry(account_id) {
             if let Some(new_account) = Account::new(account_id, points) {
-                e.insert(Arc::new(RwLock::new(new_account)));
+                e.insert(new_account);
             }
-        } else if let Some(account) = self.accounts.get(&account_id) {
-            let mut account_guard = account.write()?;
-            account_guard.add_points(points, operation_time)?;
+        } else if let Some(account) = self.accounts.get_mut(&account_id) {
+            account.add_points(points, operation_time)?;
         }
         Ok(())
     }
+    /// Metodo que toma el lock de una cuenta e invoca su metodo de restar puntos
+    fn substract_points(
+        &mut self,
+        account_id: usize,
+        points: usize,
+        operation_time: Option<u128>,
+    ) -> Result<(), ServerError> {
+        if let Some(account) = self.accounts.get_mut(&account_id) {
+            account.substract_points(points, operation_time)?;
+            return Ok(());
+        }
 
-    fn request_points(&self, account_id: usize, points: usize) -> Result<(), ServerError> {
-        if let Some(account) = self.accounts.get(&account_id) {
-            let mut account_guard = account.write()?;
-            if account_guard.points() >= points {
-                return account_guard.reserve();
+        Err(ServerError::AccountNotFound)
+    }
+    /// Metodo que toma el lock de una cuenta e invoca su metodo de actualizar puntos
+    fn update(&mut self, account_id: usize, points: usize, operation_time: u128) {
+        if let Some(account) = self.accounts.get_mut(&account_id) {
+            account.update(points, operation_time);
+            return;
+        }
+        self.accounts.insert(
+            account_id,
+            Account::new_from_update(account_id, points, operation_time),
+        );
+    }
+    /// Metodo que toma el lock de una cuenta y la reserva para que nadie pueda operar sobre ella
+    fn request_points(&mut self, account_id: usize, points: usize) -> Result<(), ServerError> {
+        if let Some(account) = self.accounts.get_mut(&account_id) {
+            if account.points() >= points {
+                return account.reserve();
             }
             return Err(ServerError::NotEnoughPointsInAccount);
         }
 
         Err(ServerError::AccountNotFound)
     }
-    fn cancel_requested_points(&self, account_id: usize) -> Result<(), ServerError> {
-        if let Some(account) = self.accounts.get(&account_id) {
-            let mut account_guard = account.write()?;
-            account_guard.cancel_reservation();
+    /// Metodo que toma el lock de una cuenta e invalida la reserva que realizo sobre esta.
+    fn cancel_requested_points(&mut self, account_id: usize) -> Result<(), ServerError> {
+        if let Some(account) = self.accounts.get_mut(&account_id) {
+            account.cancel_reservation();
             return Ok(());
         }
 
         Err(ServerError::AccountNotFound)
     }
-
-    fn substract_points(
-        &self,
-        account_id: usize,
-        points: usize,
-        operation_time: Option<u128>,
-    ) -> Result<(), ServerError> {
-        if let Some(account) = self.accounts.get(&account_id) {
-            let mut account_guard = account.write()?;
-            account_guard.substract_points(points, operation_time)?;
-            return Ok(());
-        }
-
-        Err(ServerError::AccountNotFound)
-    }
-    fn update(
-        &self,
-        account_id: usize,
-        points: usize,
-        operation_time: u128,
-    ) -> Result<(), ServerError> {
-        if let Some(account) = self.accounts.get(&account_id) {
-            let mut account_guard = account.write()?;
-            account_guard.update(points, operation_time)?;
-            return Ok(());
-        }
-
-        Err(ServerError::AccountNotFound)
-    }
+    /// Metodo que devuelve el timestamp de la cuenta que fue actualizada por ultima vez entre todas las existentes
     fn get_most_recent_update(&self) -> u128 {
         let mut latest_update: u128 = 0;
         for account in self.accounts.values() {
-            if let Ok(guard) = account.read() {
-                let account_last_update = guard.last_updated_on();
-                if latest_update < account_last_update {
-                    latest_update = account_last_update;
-                }
+            let account_last_update = account.last_updated_on();
+            if latest_update < account_last_update {
+                latest_update = account_last_update;
             }
         }
         latest_update
     }
-
+    /// Metodo que devuelve las cuentas que fueron actualizadas luego de cierto timestamp
     fn get_accounts_updated_after(&self, timestamp: u128) -> Vec<UpdatedAccount> {
         let mut updated_accounts = vec![];
         for (id, account) in self.accounts.iter() {
-            if let Ok(guard) = account.read() {
-                let last_updated_on = guard.last_updated_on();
-                if timestamp < last_updated_on {
-                    updated_accounts.push(UpdatedAccount {
-                        id: *id,
-                        amount: guard.points(),
-                        last_updated_on,
-                    });
-                }
+            let last_updated_on = account.last_updated_on();
+            if timestamp < last_updated_on {
+                updated_accounts.push(UpdatedAccount {
+                    id: *id,
+                    amount: account.points(),
+                    last_updated_on,
+                });
             }
         }
         updated_accounts
     }
 
-    fn clear_reservations(&self) {
-        for account in self.accounts.values() {
-            if let Ok(mut guard) = account.write() {
-                guard.cancel_reservation();
-            }
+    /// Metodo que elimina las reservas realizadas sobre todas las cuentas
+    fn clear_reservations(&mut self) {
+        for account in self.accounts.values_mut() {
+            account.cancel_reservation();
         }
     }
 }

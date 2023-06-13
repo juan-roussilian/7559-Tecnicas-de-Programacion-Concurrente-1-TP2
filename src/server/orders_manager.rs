@@ -1,12 +1,13 @@
-use std::sync::{Arc, MutexGuard};
+use std::sync::Arc;
 
-use lib::common_errors::ConnectionError;
+use lib::common_errors::CoffeeSystemError;
 use lib::local_connection_messages::{
     CoffeeMakerRequest, CoffeeMakerResponse, MessageType, ResponseStatus,
 };
-use log::{debug, error};
+use log::{debug, error /*, info */};
 use std::sync::mpsc::{Receiver, RecvTimeoutError, Sender};
 use std::sync::Mutex;
+//use std::thread;
 
 use crate::accounts_manager::AccountsManager;
 use crate::constants::{COFFEE_RESULT_TIMEOUT_IN_MS, POST_INITIAL_TIMEOUT_COFFEE_RESULT_IN_MS};
@@ -16,6 +17,8 @@ use crate::orders_queue::OrdersQueue;
 use crate::server_messages::{recreate_token, AccountAction, ServerMessage, TokenData};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+/// Ejecuta los pedidos de las cafeteras, guarda en la base de datos y le responde al dispatcher en las restas
+/// Se ejecuta el algoritmo cada vez que recibe el token.
 pub struct OrdersManager {
     my_id: usize,
     orders: Arc<Mutex<OrdersQueue>>,
@@ -48,6 +51,14 @@ impl OrdersManager {
     }
 
     pub fn handle_orders(&mut self) -> Result<(), ServerError> {
+        // Uncomment to see accounts data
+        // let accounts_manager_clone = self.accounts_manager.clone();
+        // let _account_print_handle = thread::spawn(move || loop {
+        //     thread::sleep(Duration::from_secs(5));
+        //     let accounts = accounts_manager_clone.lock().unwrap();
+        //     info!("{:?}", accounts);
+        // });
+
         loop {
             let mut timeout = Duration::from_millis(COFFEE_RESULT_TIMEOUT_IN_MS);
             let mut token = self.token_receiver.recv()?;
@@ -96,12 +107,15 @@ impl OrdersManager {
                         ResponseStatus::Ok
                     }
                     Err(ServerError::NotEnoughPointsInAccount) => {
-                        ResponseStatus::Err(ConnectionError::NotEnoughPoints)
+                        ResponseStatus::Err(CoffeeSystemError::NotEnoughPoints)
                     }
                     Err(ServerError::AccountNotFound) => {
-                        ResponseStatus::Err(ConnectionError::AccountNotFound)
+                        ResponseStatus::Err(CoffeeSystemError::AccountNotFound)
                     }
-                    _ => ResponseStatus::Err(ConnectionError::UnexpectedError),
+                    Err(ServerError::AccountIsReserved) => {
+                        ResponseStatus::Err(CoffeeSystemError::AccountIsReserved)
+                    }
+                    _ => ResponseStatus::Err(CoffeeSystemError::UnexpectedError),
                 };
                 self.request_points_channel.send((
                     CoffeeMakerResponse {
@@ -117,7 +131,7 @@ impl OrdersManager {
                 let result = self.result_take_points_channel.recv_timeout(timeout);
                 match result {
                     Ok(result) => {
-                        self.handle_result_of_substract_order(result, &accounts, &mut token)?;
+                        self.handle_result_of_substract_order(result, &mut accounts, &mut token)?;
                     }
                     Err(RecvTimeoutError::Timeout) => {
                         there_was_a_timeout = true;
@@ -140,7 +154,7 @@ impl OrdersManager {
     fn handle_result_of_substract_order(
         &self,
         result: CoffeeMakerRequest,
-        accounts: &MutexGuard<MemoryAccountsManager>,
+        accounts: &mut std::sync::MutexGuard<'_, MemoryAccountsManager>,
         token: &mut TokenData,
     ) -> Result<(), ServerError> {
         match result.message_type {

@@ -9,15 +9,13 @@ use actix_rt::System;
 use async_std::sync::Mutex;
 use log::{debug, error};
 
-use crate::actor_messages::{
-    ErrorOpeningFile, FinishedFile, OpenedFile, ProcessOrder, ReadAnOrder,
-};
+use crate::actor_messages::{OpenedFile, ProcessOrder, ReadAnOrder};
 use crate::constants::PROCESS_ORDER_TIME_IN_MS;
 use crate::local_server_client::{LocalServer, LocalServerClient};
 use crate::order::{ConsumptionType, Order};
 use crate::orders_reader::OrdersReader;
 use crate::randomizer::Randomizer;
-use lib::common_errors::ConnectionError;
+use lib::common_errors::CoffeeSystemError;
 
 use self::sync::sleep;
 
@@ -37,6 +35,8 @@ mod sync {
     }
 }
 
+/// Representa a una cafetera que procesa los pedidos. Tiene la direccion del lector,
+/// la conexion con el servidor, un generador de exitos de pedidos y su id
 pub struct CoffeeMaker {
     reader_addr: Addr<OrdersReader>,
     server_conn: Arc<Mutex<Box<dyn LocalServerClient>>>,
@@ -50,7 +50,7 @@ impl CoffeeMaker {
         server_addr: &String,
         order_randomizer: Box<dyn Randomizer>,
         id: usize,
-    ) -> Result<CoffeeMaker, ConnectionError> {
+    ) -> Result<CoffeeMaker, CoffeeSystemError> {
         let connection = LocalServer::new(server_addr)?;
         Ok(CoffeeMaker {
             reader_addr,
@@ -74,14 +74,15 @@ impl CoffeeMaker {
             System::current().stop();
         }
     }
-
+    /// Handler de resultados que retorna el servidor a traves de su cliente y detiene la cafetera
+    /// en caso de no poder conectarse a este
     fn handle_server_result(
         &mut self,
-        result: Result<(), ConnectionError>,
+        result: Result<(), CoffeeSystemError>,
         ctx: &mut Context<Self>,
     ) {
         match result {
-            Err(ConnectionError::ConnectionLost) => {
+            Err(CoffeeSystemError::ConnectionLost) => {
                 error!(
                     "[COFFEE MAKER {}] can't connect to server, stopping...",
                     self.id
@@ -97,26 +98,15 @@ impl CoffeeMaker {
             }
         }
     }
-
+    /// Detiene el sistema de la cafetera
     fn stop_system(&mut self, ctx: &mut Context<Self>) {
         ctx.stop();
+        System::current().stop();
     }
 }
 
 impl Actor for CoffeeMaker {
     type Context = Context<Self>;
-}
-
-impl Handler<ErrorOpeningFile> for CoffeeMaker {
-    type Result = ();
-
-    fn handle(&mut self, _msg: ErrorOpeningFile, ctx: &mut Context<Self>) -> Self::Result {
-        debug!(
-            "[COFFEE MAKER {}] Received message of error opening file",
-            self.id
-        );
-        self.stop_system(ctx);
-    }
 }
 
 impl Handler<OpenedFile> for CoffeeMaker {
@@ -128,15 +118,6 @@ impl Handler<OpenedFile> for CoffeeMaker {
             self.id
         );
         self.send_message(ReadAnOrder(self.id));
-    }
-}
-
-impl Handler<FinishedFile> for CoffeeMaker {
-    type Result = ();
-
-    fn handle(&mut self, _msg: FinishedFile, ctx: &mut Context<Self>) -> Self::Result {
-        debug!("[COFFEE MAKER {}] Received message to finish", self.id);
-        self.stop_system(ctx);
     }
 }
 
@@ -166,13 +147,13 @@ impl Handler<ProcessOrder> for CoffeeMaker {
         }
     }
 }
-
+/// Metodo para comunicar al actor de cliente de servidor que debe sumar puntos a una cuenta del servidor
 async fn add_points(
     order: Order,
     server: Arc<Mutex<Box<dyn LocalServerClient>>>,
     randomizer: Arc<Mutex<Box<dyn Randomizer>>>,
     id: usize,
-) -> Result<(), ConnectionError> {
+) -> Result<(), CoffeeSystemError> {
     sleep(Duration::from_millis(PROCESS_ORDER_TIME_IN_MS)).await;
     let success = randomizer.lock().await.get_random_success();
     if !success {
@@ -184,13 +165,14 @@ async fn add_points(
         .add_points(order.account_id, order.consumption)
         .await
 }
-
+/// Metodo para comunicar al actor de cliente de servidor que han sido consumidos puntos al servidor
+/// en caso de que la orden sea producida correctamente
 async fn consume_points(
     order: Order,
     server: Arc<Mutex<Box<dyn LocalServerClient>>>,
     randomizer: Arc<Mutex<Box<dyn Randomizer>>>,
     id: usize,
-) -> Result<(), ConnectionError> {
+) -> Result<(), CoffeeSystemError> {
     let result = server
         .lock()
         .await
@@ -279,12 +261,12 @@ mod tests {
         let mut connection_mock = MockLocalServerClient::new();
         connection_mock
             .expect_add_points()
-            .returning(|_, _| Err(ConnectionError::ConnectionLost));
+            .returning(|_, _| Err(CoffeeSystemError::ConnectionLost));
         let connection_mock: Arc<Mutex<Box<dyn LocalServerClient>>> =
             Arc::new(Mutex::new(Box::new(connection_mock)));
         let result = add_points(order, connection_mock.clone(), rand_mock.clone(), 0).await;
         assert!(result.is_err());
-        assert_eq!(ConnectionError::ConnectionLost, result.unwrap_err());
+        assert_eq!(CoffeeSystemError::ConnectionLost, result.unwrap_err());
     }
 
     #[actix_rt::test]
@@ -331,12 +313,12 @@ mod tests {
             .returning(|_, _| Ok(()));
         connection_mock
             .expect_take_points()
-            .returning(|_, _| Err(ConnectionError::ConnectionLost));
+            .returning(|_, _| Err(CoffeeSystemError::ConnectionLost));
         let connection_mock: Arc<Mutex<Box<dyn LocalServerClient>>> =
             Arc::new(Mutex::new(Box::new(connection_mock)));
         let result = consume_points(order, connection_mock.clone(), rand_mock.clone(), 0).await;
         assert!(result.is_err());
-        assert_eq!(ConnectionError::ConnectionLost, result.unwrap_err());
+        assert_eq!(CoffeeSystemError::ConnectionLost, result.unwrap_err());
     }
 
     #[actix_rt::test]
@@ -353,11 +335,11 @@ mod tests {
         let mut connection_mock = MockLocalServerClient::new();
         connection_mock
             .expect_request_points()
-            .returning(|_, _| Err(ConnectionError::NotEnoughPoints));
+            .returning(|_, _| Err(CoffeeSystemError::NotEnoughPoints));
         let connection_mock: Arc<Mutex<Box<dyn LocalServerClient>>> =
             Arc::new(Mutex::new(Box::new(connection_mock)));
         let result = consume_points(order, connection_mock.clone(), rand_mock.clone(), 0).await;
         assert!(result.is_err());
-        assert_eq!(ConnectionError::NotEnoughPoints, result.unwrap_err());
+        assert_eq!(CoffeeSystemError::NotEnoughPoints, result.unwrap_err());
     }
 }

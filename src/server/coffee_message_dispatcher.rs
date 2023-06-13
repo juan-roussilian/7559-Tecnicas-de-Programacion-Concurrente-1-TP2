@@ -1,7 +1,7 @@
 use crate::connection_status::ConnectionStatus;
 use crate::errors::ServerError;
 use crate::orders_queue::OrdersQueue;
-use lib::common_errors::ConnectionError;
+use lib::common_errors::CoffeeSystemError;
 use lib::local_connection_messages::{
     CoffeeMakerRequest, CoffeeMakerResponse, MessageType, ResponseStatus,
 };
@@ -11,6 +11,8 @@ use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Arc, Mutex};
 use std::thread;
 
+/// Representa un despachador de mensajes que recibe las CoffeeMakerRequests ya deserializadas, y
+/// reenvía estos mensajes al OrdersManager
 pub struct CoffeeMessageDispatcher {
     is_connected: Arc<Mutex<ConnectionStatus>>,
     orders: Arc<Mutex<OrdersQueue>>,
@@ -19,6 +21,7 @@ pub struct CoffeeMessageDispatcher {
 }
 
 impl CoffeeMessageDispatcher {
+    /// Retorna un nuevo CoffeeMessageDispatcher
     pub fn new(
         is_connected: Arc<Mutex<ConnectionStatus>>,
         orders: Arc<Mutex<OrdersQueue>>,
@@ -32,7 +35,9 @@ impl CoffeeMessageDispatcher {
             machine_response_senders,
         }
     }
-
+    /// Recibe CoffeeMakerRequests y las reenvía al OrdersManager, ya sea a través de la OrdersQueue o un channel aparte,
+    /// dependiendo del tipo de request. Además puede responder tempranamente a estas requests sin mandarlas al OrdersManager,
+    /// de saber que el estado de la conexión y el tipo de request lo ameriten.
     pub fn dispatch_coffee_requests(
         &mut self,
         orders_request_sender: Sender<CoffeeMakerRequest>,
@@ -79,7 +84,7 @@ impl CoffeeMessageDispatcher {
                         orders_response_sender.send((
                             CoffeeMakerResponse {
                                 message_type: new_request.0.message_type,
-                                status: ResponseStatus::Err(ConnectionError::ConnectionLost),
+                                status: ResponseStatus::Err(CoffeeSystemError::ConnectionLost),
                             },
                             new_request.1,
                         ))?;
@@ -108,6 +113,8 @@ impl CoffeeMessageDispatcher {
         }
     }
 
+    /// Escucha CoffeeMakerResponses por un Receiver, y las reenvía por el Sender correspondiente
+    /// a esa cafetera.
     fn send_coffee_responses(
         machine_response_senders: Arc<Mutex<HashMap<usize, Sender<CoffeeMakerResponse>>>>,
         orders_response_receiver: Receiver<(CoffeeMakerResponse, usize)>,

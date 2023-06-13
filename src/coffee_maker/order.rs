@@ -2,6 +2,7 @@ use log::error;
 
 use crate::errors::CoffeeMakerError;
 
+/// Representa a una orden leida del archivo, tiene el tipo de orden, la cuenta, y los puntos que da o quita
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Order {
     pub consumption_type: ConsumptionType,
@@ -9,6 +10,7 @@ pub struct Order {
     pub consumption: usize,
 }
 
+/// Los tipos de pedidos que puede haber
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum ConsumptionType {
     Points,
@@ -16,6 +18,7 @@ pub enum ConsumptionType {
 }
 
 impl Order {
+    /// Parsea una linea de texto a un objeto Order
     pub fn from_line(line: &str) -> Result<Order, CoffeeMakerError> {
         let line = remove_ending(line);
         let parts: Vec<&str> = line.splitn(3, ',').collect();

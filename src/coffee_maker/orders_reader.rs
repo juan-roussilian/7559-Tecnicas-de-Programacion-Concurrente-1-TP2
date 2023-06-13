@@ -1,13 +1,12 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 
-use crate::actor_messages::{
-    ErrorOpeningFile, FinishedFile, OpenFile, OpenedFile, ProcessOrder, ReadAnOrder,
-};
+use crate::actor_messages::{OpenFile, OpenedFile, ProcessOrder, ReadAnOrder};
 use crate::order::Order;
 use crate::CoffeeMaker;
-use actix::fut::ready;
+use actix::fut::{ready, wrap_future};
 use actix::{
-    Actor, ActorContext, ActorFutureExt, Addr, AsyncContext, Context, Handler, Message,
+    Actor, ActorFutureExt, Addr, AsyncContext, Context, ContextFutureSpawner, Handler, Message,
     ResponseActFuture, WrapFuture,
 };
 use actix_rt::System;
@@ -17,18 +16,20 @@ use async_std::io::BufReader;
 use async_std::sync::Mutex;
 use log::{debug, error, info};
 
+/// Lector de ordenes de la cafetera
 pub struct OrdersReader {
     file_name: String,
     file: Option<Arc<Mutex<BufReader<File>>>>,
-    coffee_maker_addr: Option<Vec<Addr<CoffeeMaker>>>,
+    coffee_maker_addr: Option<HashMap<usize, Addr<CoffeeMaker>>>,
 }
 
+/// Estados posibles al leer una linea del archio
 #[derive(Debug, PartialEq, Eq)]
 enum OrdersReaderState {
     Reading(Order, usize),
     ErrorReading,
     ParserErrorRetry(usize),
-    Finished,
+    Finished(usize),
 }
 
 impl OrdersReader {
@@ -50,23 +51,42 @@ impl OrdersReader {
         }
     }
 
+    fn finish_file(&mut self, id: usize) {
+        if let Some(addresses) = self.coffee_maker_addr.as_mut() {
+            addresses.remove(&id);
+            if addresses.is_empty() {
+                info!("[READER] Everyone finished, stopping...");
+                System::current().stop();
+            }
+        }
+    }
+
     fn send_message<ToCoffeeMakerMessage>(&self, msg: ToCoffeeMakerMessage, id: usize)
     where
         CoffeeMaker: Handler<ToCoffeeMakerMessage>,
         ToCoffeeMakerMessage: Message + Send + 'static,
         ToCoffeeMakerMessage::Result: Send,
     {
-        if let Some(addr) = self.coffee_maker_addr.as_ref() {
-            if let Err(e) = addr[id].try_send(msg) {
-                error!(
-                    "[READER] Error sending message to coffee maker {}, stopping...",
-                    e
-                );
-                System::current().stop();
+        if let Some(addresses) = self.coffee_maker_addr.as_ref() {
+            let addr = addresses.get(&id);
+            match addr {
+                Some(addr) => {
+                    if let Err(e) = addr.try_send(msg) {
+                        error!(
+                            "[READER] Error sending message to coffee maker {}, stopping...",
+                            e
+                        );
+                        System::current().stop();
+                    }
+                }
+                None => {
+                    error!("[READER] Address is not present, stopping...");
+                    System::current().stop();
+                }
             }
             return;
         }
-        error!("[READER] Address is not present, stopping...");
+        error!("[READER] Addresses are not present, stopping...");
         System::current().stop();
     }
 
@@ -106,29 +126,26 @@ impl Handler<OpenFile> for OrdersReader {
 }
 
 impl Handler<ReadAnOrder> for OrdersReader {
-    type Result = ResponseActFuture<Self, ()>;
+    type Result = ();
 
-    fn handle(&mut self, msg: ReadAnOrder, _ctx: &mut Context<Self>) -> Self::Result {
+    fn handle(&mut self, msg: ReadAnOrder, ctx: &mut Context<Self>) -> Self::Result {
         debug!("[READER] Received message to read an order from the file");
         match self.file.as_ref() {
-            Some(file) => Box::pin(
-                read_line_from_file(file.clone(), msg.0)
-                    .into_actor(self)
-                    .map(send_message_depending_on_result),
-            ),
+            Some(file) => wrap_future::<_, Self>(read_line_from_file(file.clone(), msg.0))
+                .map(send_message_depending_on_result)
+                .spawn(ctx),
+
             None => {
                 error!("[READER] File should be present, stopping...");
-                System::current().stop();
-                Box::pin(
-                    ready(OrdersReaderState::ErrorReading)
-                        .into_actor(self)
-                        .map(send_message_depending_on_result),
-                )
+                wrap_future::<_, Self>(ready(OrdersReaderState::ErrorReading))
+                    .map(send_message_depending_on_result)
+                    .spawn(ctx)
             }
         }
     }
 }
-
+/// Lee una linea del archivo de pedidos, y retorna un estado dependiendo si esta es la ultima o no,
+/// o si fallo la lectura.
 async fn read_line_from_file(
     file: Arc<Mutex<BufReader<File>>>,
     coffee_id: usize,
@@ -143,7 +160,7 @@ async fn read_line_from_file(
     let bytes_read = result.unwrap();
     if bytes_read == 0 {
         info!("[READER] Finished reading file");
-        return OrdersReaderState::Finished;
+        return OrdersReaderState::Finished(coffee_id);
     }
     debug!("[READER] Line read from file: {}", line);
     let conversion_result = Order::from_line(&line);
@@ -154,7 +171,7 @@ async fn read_line_from_file(
 
     OrdersReaderState::Reading(conversion_result.unwrap(), coffee_id)
 }
-
+/// Guardara el archivo de pedidos en caso de que este haya sido abierto sin errores y se lo comunica a los otros actores
 fn handle_opened_file(
     result: Result<File, std::io::Error>,
     me: &mut OrdersReader,
@@ -162,7 +179,6 @@ fn handle_opened_file(
 ) {
     if result.is_err() {
         error!("[READER] Error opening file: {}", me.file_name);
-        me.send_all(ErrorOpeningFile);
         System::current().stop();
         return;
     }
@@ -170,7 +186,7 @@ fn handle_opened_file(
     me.file = Some(Arc::new(Mutex::new(BufReader::new(result.unwrap()))));
     me.send_all(OpenedFile);
 }
-
+/// Enviara un mensaje a los dependiendo del estado del parser, el cual puede ser: error, leyendo/parseando y terminado.
 fn send_message_depending_on_result(
     result: OrdersReaderState,
     me: &mut OrdersReader,
@@ -183,11 +199,10 @@ fn send_message_depending_on_result(
         OrdersReaderState::Reading(order, id) => {
             me.send_message(ProcessOrder(order), id);
         }
-        _ => {
-            me.send_all(FinishedFile);
-            ctx.stop();
-            System::current().stop();
+        OrdersReaderState::Finished(id) => {
+            me.finish_file(id);
         }
+        _ => {}
     }
 }
 
@@ -228,7 +243,7 @@ mod tests {
         let file = file.unwrap();
         let file = Arc::new(Mutex::new(BufReader::new(file)));
         let result = read_line_from_file(file, 0).await;
-        assert_eq!(OrdersReaderState::Finished, result);
+        assert_eq!(OrdersReaderState::Finished(0), result);
     }
 
     #[actix_rt::test]
@@ -249,6 +264,6 @@ mod tests {
         assert_eq!(OrdersReaderState::ParserErrorRetry(0), result);
 
         let result = read_line_from_file(file, 0).await;
-        assert_eq!(OrdersReaderState::Finished, result);
+        assert_eq!(OrdersReaderState::Finished(0), result);
     }
 }

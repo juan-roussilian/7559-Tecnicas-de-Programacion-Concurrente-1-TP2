@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use lib::local_connection_messages::{CoffeeMakerRequest, MessageType};
 
+/// Representa a la cola de pedidos de las cafeteras. Estas van a ser procesadas por el OrdersManager
 pub struct OrdersQueue {
     adding_orders: Vec<(CoffeeMakerRequest, usize)>,
     request_points_orders: Vec<(CoffeeMakerRequest, usize)>,
@@ -27,6 +28,7 @@ impl OrdersQueue {
         self.adding_orders.is_empty() && self.request_points_orders.is_empty()
     }
 
+    /// Retorna los pedidos de suma reduciendolos en caso de que sean varios sobre la misma cuenta
     pub fn get_and_clear_adding_orders(&mut self) -> Vec<CoffeeMakerRequest> {
         let mut reduced = HashMap::new();
         for req in &self.adding_orders {

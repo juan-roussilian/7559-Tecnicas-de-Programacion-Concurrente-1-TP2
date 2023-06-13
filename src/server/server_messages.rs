@@ -3,6 +3,7 @@ use std::collections::{HashMap, HashSet};
 use lib::local_connection_messages::MessageType;
 use serde::{Deserialize, Serialize};
 
+/// Representa al mensaje que se envian entre si los servidores locales
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ServerMessage {
     pub message_type: ServerMessageType,
@@ -10,7 +11,8 @@ pub struct ServerMessage {
     pub passed_by: HashSet<usize>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+/// Los diferentes tipos de mensajes que pueden enviarse los servidores locales
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub enum ServerMessageType {
     NewConnection(Diff),
     CloseConnection,
@@ -21,7 +23,8 @@ pub enum ServerMessageType {
 type ServerId = usize;
 pub type TokenData = HashMap<usize, Vec<AccountAction>>;
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+/// Representa un cambio a ejecutarse sobre una cuenta
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub struct AccountAction {
     pub message_type: MessageType,
     pub account_id: usize,
@@ -29,13 +32,16 @@ pub struct AccountAction {
     pub last_updated_on: u128,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+/// Es parte del mensaje de nueva conexion, tiene la fecha mas reciente de actualizacion al enviarse desde el nodo inicial
+/// Al recibirlo cuando de la vuelta se le agregan las actualizaciones a partir de esa fecha
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub struct Diff {
     pub last_update: u128,
     pub changes: Vec<UpdatedAccount>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+/// Representa al estado total de una cuenta
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub struct UpdatedAccount {
     pub id: usize,
     pub amount: usize,
