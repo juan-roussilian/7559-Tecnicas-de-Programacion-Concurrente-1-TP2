@@ -144,7 +144,7 @@ impl Handler<ReadAnOrder> for OrdersReader {
         }
     }
 }
-/// Lee una linea del archivo de pedidos, y retorna un estado dependiendo si esta es la ultima o no, 
+/// Lee una linea del archivo de pedidos, y retorna un estado dependiendo si esta es la ultima o no,
 /// o si fallo la lectura.
 async fn read_line_from_file(
     file: Arc<Mutex<BufReader<File>>>,

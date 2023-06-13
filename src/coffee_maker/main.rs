@@ -1,21 +1,21 @@
-/// Modulo que representa al actor que realizara la comunicacion entre la cafetera y el servidor local.
-pub mod local_server_client;
-/// Modulo que devuelve exito o error utilizando un numero generado al azar y un porcentaje de exito.
-pub mod randomizer;
 /// Modulo de mensajes que utilizan los actores que componen la cafetera.
 pub mod actor_messages;
-/// Modulo de errores que utiliza unicamente la cafetera.
-pub mod errors;
-/// Modulo que representa un pedido de los clientes de la cafeteria.
-pub mod order;
-/// Modulo de que representa al actor que procesa archivos de pedidos de clientes y los convierte en structs order.
-pub mod orders_reader;
 /// Modulo que representa los parametros que puede recibir el binario para su ejecucion
 pub mod coffee_args;
 /// Modulo que representa al actor cafetera, el cual recibe las ordenes e interactua con el actor cliente de local server
 pub mod coffee_maker;
 /// Modulo donde se encuentran las constantes definidas para el funcionamiento correcto de la cafetera.
 pub mod constants;
+/// Modulo de errores que utiliza unicamente la cafetera.
+pub mod errors;
+/// Modulo que representa al actor que realizara la comunicacion entre la cafetera y el servidor local.
+pub mod local_server_client;
+/// Modulo que representa un pedido de los clientes de la cafeteria.
+pub mod order;
+/// Modulo de que representa al actor que procesa archivos de pedidos de clientes y los convierte en structs order.
+pub mod orders_reader;
+/// Modulo que devuelve exito o error utilizando un numero generado al azar y un porcentaje de exito.
+pub mod randomizer;
 
 use std::{collections::HashMap, env};
 

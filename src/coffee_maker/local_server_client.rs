@@ -19,8 +19,11 @@ use lib::{
 #[async_trait]
 pub trait LocalServerClient {
     async fn add_points(&self, account_id: usize, points: usize) -> Result<(), CoffeeSystemError>;
-    async fn request_points(&self, account_id: usize, points: usize)
-        -> Result<(), CoffeeSystemError>;
+    async fn request_points(
+        &self,
+        account_id: usize,
+        points: usize,
+    ) -> Result<(), CoffeeSystemError>;
     async fn take_points(&self, account_id: usize, points: usize) -> Result<(), CoffeeSystemError>;
     async fn cancel_point_request(&self, account_id: usize) -> Result<(), CoffeeSystemError>;
 }
