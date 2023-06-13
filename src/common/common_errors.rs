@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-/// ConnectionError representa los distintos tipos de error que pueden surgir durante la comunicación CoffeeMaker<->Server
+/// CoffeeSystemError representa los distintos tipos de error que pueden surgir durante la comunicación CoffeeMaker<->Server
 #[derive(Deserialize, Serialize, Debug, PartialEq, Eq, Clone, Copy)]
 pub enum CoffeeSystemError {
     AccountNotFound,
