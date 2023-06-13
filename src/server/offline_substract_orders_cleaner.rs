@@ -7,7 +7,7 @@ use lib::{
 
 use crate::{errors::ServerError, orders_queue::OrdersQueue};
 
-/// Limpador de ordenes de resta
+/// Limpador de ordenes de resta en caso de perdida de conexion
 pub struct SubstractOrdersCleaner {
     orders: Arc<Mutex<OrdersQueue>>,
     request_points_channel: Sender<(CoffeeMakerResponse, usize)>,
@@ -22,7 +22,7 @@ impl SubstractOrdersCleaner {
             request_points_channel,
         }
     }
-    /// Metodo para eliminar las ordenes de resta de puntos
+    /// Metodo para eliminar las ordenes de resta de puntos cuando no se tiene conexion por un tiempo
     pub fn clean_substract_orders_if_offline(&self) -> Result<(), ServerError> {
         let response = CoffeeMakerResponse {
             message_type: MessageType::RequestPoints,

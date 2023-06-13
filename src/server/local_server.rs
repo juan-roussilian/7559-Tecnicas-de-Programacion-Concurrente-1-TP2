@@ -27,6 +27,8 @@ use crate::{
     server_messages::{ServerMessage, TokenData},
 };
 
+/// Es la entidad que inicializa la aplicacion.
+/// Una vez hecho esto se pone a escuchar para conexiones entrantes de otros servidores locales
 pub struct LocalServer {
     id: usize,
     listener: Box<dyn ConnectionServer>,

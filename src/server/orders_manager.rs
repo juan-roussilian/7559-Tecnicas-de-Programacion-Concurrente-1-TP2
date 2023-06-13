@@ -17,6 +17,8 @@ use crate::orders_queue::OrdersQueue;
 use crate::server_messages::{recreate_token, AccountAction, ServerMessage, TokenData};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+/// Ejecuta los pedidos de las cafeteras, guarda en la base de datos y le responde al dispatcher en las restas
+/// Se ejecuta el algoritmo cada vez que recibe el token.
 pub struct OrdersManager {
     my_id: usize,
     orders: Arc<Mutex<OrdersQueue>>,
