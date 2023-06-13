@@ -15,7 +15,8 @@ use crate::{
     connection_status::ConnectionStatus,
     memory_accounts_manager::MemoryAccountsManager,
     server_messages::{
-        create_maybe_we_lost_the_token_message, Diff, ServerMessage, ServerMessageType, TokenData,
+        create_maybe_we_lost_the_token_message, AccountAction, Diff, ServerMessage,
+        ServerMessageType, TokenData,
     },
 };
 
@@ -152,50 +153,63 @@ impl PrevConnection {
             "[PREVIOUS CONNECTION] Updating myself with diff data {:?}",
             diff
         );
-        for update in &diff.changes {
-            if let Ok(mut guard) = self.accounts_manager.lock() {
+        if let Ok(mut guard) = self.accounts_manager.lock() {
+            for update in &diff.changes {
                 guard.update(update.id, update.amount, update.last_updated_on);
             }
+        } else {
+            error!("[PREVIOUS CONNECTION] Error updating myself with diff data due to lock error");
         }
     }
 
     fn receive_update_of_other_nodes_and_clean_my_updates(&mut self, data: &mut TokenData) {
         data.remove(&self.my_id);
-        for (server_id, changes) in data {
-            debug!(
-                "[PREVIOUS CONNECTION] There are updates from server {}",
-                server_id
-            );
-            debug!("[PREVIOUS CONNECTION] List of changes {:?}", changes);
-            for update in changes {
-                if update.message_type == MessageType::AddPoints {
-                    if let Ok(mut guard) = self.accounts_manager.lock() {
-                        if guard
-                            .add_points(
-                                update.account_id,
-                                update.points,
-                                Some(update.last_updated_on),
-                            )
-                            .is_err()
-                        {
-                            warn!("Unable to handle add points message");
-                        }
-                    }
-                } else if update.message_type == MessageType::TakePoints {
-                    if let Ok(mut guard) = self.accounts_manager.lock() {
-                        if guard
-                            .substract_points(
-                                update.account_id,
-                                update.points,
-                                Some(update.last_updated_on),
-                            )
-                            .is_err()
-                        {
-                            warn!("Unable to handle subtract points message");
-                        }
-                    }
+        if let Ok(mut guard) = self.accounts_manager.lock() {
+            for (server_id, changes) in data {
+                debug!(
+                    "[PREVIOUS CONNECTION] There are updates from server {}",
+                    server_id
+                );
+                debug!("[PREVIOUS CONNECTION] List of changes {:?}", changes);
+                for update in changes {
+                    update_account_with_change(update, &mut guard);
                 }
             }
+        } else {
+            error!("[PREVIOUS CONNECTION] Error locking accounts manager to receive changes")
         }
+    }
+}
+
+fn update_account_with_change(
+    update: &mut AccountAction,
+    guard: &mut std::sync::MutexGuard<MemoryAccountsManager>,
+) {
+    match update.message_type {
+        MessageType::AddPoints => {
+            if guard
+                .add_points(
+                    update.account_id,
+                    update.points,
+                    Some(update.last_updated_on),
+                )
+                .is_err()
+            {
+                warn!("[PREVIOUS CONNECTION] Unable to handle add points message");
+            }
+        }
+        MessageType::TakePoints => {
+            if guard
+                .substract_points(
+                    update.account_id,
+                    update.points,
+                    Some(update.last_updated_on),
+                )
+                .is_err()
+            {
+                warn!("[PREVIOUS CONNECTION] Unable to handle subtract points message");
+            }
+        }
+        _ => {}
     }
 }
