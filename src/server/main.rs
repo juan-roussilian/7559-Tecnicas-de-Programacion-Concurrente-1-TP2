@@ -9,6 +9,7 @@ use server_args::ServerArgs;
 pub mod coffee_maker_connection;
 /// Modulo que crea hilos para las conexiones con cada cafetera
 pub mod coffee_maker_server;
+/// Modulo que despacha mensajes entrantes de todas las cafeteras hacia el OrdersManager de ser posible
 pub mod coffee_message_dispatcher;
 /// Modulo de conexion entre servidores
 pub mod connection_server;
