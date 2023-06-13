@@ -165,6 +165,4 @@ impl LocalServer {
             self.connection_status.lock()?.set_prev_online();
         }
     }
-
-    // todo crear next en nuevo hilo que este manejando los intentos de conexiones y envio de mensajes a siguiente
 }

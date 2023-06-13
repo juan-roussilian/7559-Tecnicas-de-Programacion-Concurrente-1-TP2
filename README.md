@@ -39,7 +39,10 @@ Se proveen distintos casos de prueba de la aplicación. Se pueden ejecutar con:
 $ cargo test
 ```
 
-Algunas pruebas destacadas son:
+Algunas notas:
+* Los sleep están mockeados para que corran más rápido
+* Se utilizó `mockall` para mockear partes de las aplicaciones. *La dependencia se encuentra en dependencies y no en dev-dependencies debido a problemas con `async-trait`*
+* Se pueden correr los de alguna aplicación en específico con el flag `--bin [NOMBRE]`
 
 ### Dependencias y binarios
 El trabajo práctico está dividido en las siguientes partes:
