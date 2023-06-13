@@ -7,11 +7,11 @@ use lib::{
 
 use crate::{errors::ServerError, orders_queue::OrdersQueue};
 
+/// Limpador de ordenes de resta
 pub struct SubstractOrdersCleaner {
     orders: Arc<Mutex<OrdersQueue>>,
     request_points_channel: Sender<(CoffeeMakerResponse, usize)>,
 }
-
 impl SubstractOrdersCleaner {
     pub fn new(
         orders: Arc<Mutex<OrdersQueue>>,
@@ -22,6 +22,7 @@ impl SubstractOrdersCleaner {
             request_points_channel,
         }
     }
+    /// Metodo para eliminar las ordenes de resta de puntos
     pub fn clean_substract_orders_if_offline(&self) -> Result<(), ServerError> {
         let response = CoffeeMakerResponse {
             message_type: MessageType::RequestPoints,
