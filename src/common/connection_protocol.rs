@@ -60,7 +60,6 @@ impl TcpConnection {
 }
 
 #[async_trait]
-#[cfg_attr(test, automock)]
 impl ConnectionProtocol for TcpConnection {
     async fn send(&mut self, data: &[u8]) -> Result<(), CoffeeSystemError> {
         match self.writer.write_all(data).await {

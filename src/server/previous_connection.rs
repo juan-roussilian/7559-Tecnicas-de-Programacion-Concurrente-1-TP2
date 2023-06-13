@@ -270,7 +270,7 @@ mod tests {
 
         connection
             .expect_recv()
-            .returning(|| Err(ConnectionError::ConnectionLost));
+            .returning(|| Err(CoffeeSystemError::ConnectionLost));
 
         let (to_next_channel, to_next_sender_msg) = mpsc::channel();
         let (to_orders_manager_channel, _) = mpsc::channel();
@@ -310,7 +310,7 @@ mod tests {
 
         connection
             .expect_recv()
-            .returning(|| Err(ConnectionError::ConnectionLost));
+            .returning(|| Err(CoffeeSystemError::ConnectionLost));
 
         let (to_next_channel, to_next_sender_msg) = mpsc::channel();
         let (to_orders_manager_channel, _) = mpsc::channel();
