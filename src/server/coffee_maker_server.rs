@@ -14,6 +14,10 @@ use crate::{
     errors::ServerError,
 };
 
+/// Representa un servidor que escucha nuevas conexiones de cafeteras. Además de su listener,
+/// contiene el Sender channel de CoffeeMakerRequest que clonará para cada cafetera conectada,
+/// y un mutex de un diccionario donde nos guardaremos el Sender channel de CoffeeMakerResponse
+/// para cada id de cafetera.
 pub struct CoffeeMakerServer {
     listener: TcpConnectionServer,
     coffee_machines_connections: Vec<JoinHandle<Result<(), CoffeeSystemError>>>,
@@ -22,6 +26,7 @@ pub struct CoffeeMakerServer {
 }
 
 impl CoffeeMakerServer {
+    /// Devuelve un nuevo CoffeeMakerServer, o error en caso de no poder abrir un nuevo listener.
     pub fn new(
         id: usize,
         coffee_request_sender: Sender<(CoffeeMakerRequest, usize)>,
@@ -36,6 +41,8 @@ impl CoffeeMakerServer {
         })
     }
 
+    /// Escucha por nuevas conexiones entrantes de cafeteras, y para cada una de ellas las registra en el diccionario interno.
+    /// Además levanta un hilo donde se llama a receive_messages_from_coffee_maker() para esa cafetera en específico.
     pub fn listen(&mut self) -> Result<(), ServerError> {
         let mut curr_machine_id = 0;
         loop {

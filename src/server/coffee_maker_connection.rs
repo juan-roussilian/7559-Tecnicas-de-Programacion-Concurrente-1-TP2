@@ -10,7 +10,7 @@ use lib::{
 use log::{debug, error};
 
 /// Recibe mensajes de la conexión con la cafetera y los deserializa, para luego enviarlos por un channel
-/// que escucharán CoffeeMessageDispatcher y AccountManager. A su vez, esas entidades responderán por
+/// que escucharán CoffeeMessageDispatcher y el Order/Account managers posteriores. A su vez, esas entidades responderán por
 /// otro channel que esta función estará escuchando para poder responderle a la cafetera como corresponda.
 pub fn receive_messages_from_coffee_maker(
     connection: &mut Box<dyn ConnectionProtocol + Send>,
