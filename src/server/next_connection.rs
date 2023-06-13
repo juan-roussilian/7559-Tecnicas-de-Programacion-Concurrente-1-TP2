@@ -47,6 +47,7 @@ mod sync {
     }
 }
 
+/// Maneja y envia la comunicacion hacia la siguiente conexion en el anillo de servidores locales
 pub struct NextConnection {
     id: usize,
     peer_count: usize,

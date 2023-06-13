@@ -6,11 +6,13 @@ use log::{error, info};
 
 use crate::errors::ServerError;
 
+/// Abstraccion que permite conectar servidores entre si
 #[async_trait]
 pub trait ConnectionServer {
     async fn listen(&self) -> Result<Box<dyn ConnectionProtocol + Send>, ServerError>;
 }
 
+/// Implementacion de la abstraccion de conexion que utiliza el protocolo TCP.
 pub struct TcpConnectionServer {
     listener: TcpListener,
 }

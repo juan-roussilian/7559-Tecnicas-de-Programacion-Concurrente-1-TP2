@@ -5,21 +5,28 @@ use lib::logger::set_logger_config;
 use local_server::LocalServer;
 use log::error;
 use server_args::ServerArgs;
-/// Modulo que realiza la comunicacion con la cafetera.
+/// Modulo que realiza la comunicacion con la cafetera
 pub mod coffee_maker_connection;
 /// Modulo que crea hilos para las conexiones con cada cafetera
 pub mod coffee_maker_server;
 pub mod coffee_message_dispatcher;
+/// Modulo de conexion entre servidores
 pub mod connection_server;
-/// Modulo de errores que utiliza unicamente el servidor.
+/// Modulo de errores que utiliza unicamente el servidor
 pub mod errors;
+/// Modulo que representa al servidor
 pub mod local_server;
+/// Modulo que maneja las ordenes de la cafetera
 pub mod orders_manager;
+/// Modulo que representa una cola de ordenes
 pub mod orders_queue;
 /// Modulo que representa la conexion de un servidor con el peer anterior del token ring 
 pub mod previous_connection;
+/// Modulo que representa los parametros que recibe el servidor al ejecutarse
 pub mod server_args;
+/// Modulo que contiene los posibles mensajes que pueden intercambiar los servidores pares
 pub mod server_messages;
+/// Modulo utilizado por los servidores para realizar consultas y alterar los estados de los peers vecinos del ring
 pub mod connection_status;
 /// Modulo que representa la conexion de un servidor con el peer siguiente del token ring 
 pub mod next_connection;

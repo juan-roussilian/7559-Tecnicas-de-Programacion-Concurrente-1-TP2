@@ -1,9 +1,11 @@
 #[derive(Debug, PartialEq, Eq)]
+/// Posibles estados para los peers
 enum Status {
     Connected,
     Disconnected,
 }
 
+/// Estado que contiene los estados para el vecino anterior y siguiente del ring
 pub struct ConnectionStatus {
     next: Status,
     prev: Status,
