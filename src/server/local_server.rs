@@ -8,7 +8,7 @@ use std::{
 };
 
 use async_std::task;
-use lib::common_errors::ConnectionError;
+use lib::common_errors::CoffeeSystemError;
 use log::error;
 
 use crate::{
@@ -136,7 +136,7 @@ impl LocalServer {
     }
 
     fn listen(&mut self) -> Result<(), ServerError> {
-        let mut curr_prev_handle: Option<JoinHandle<Result<(), ConnectionError>>> = None;
+        let mut curr_prev_handle: Option<JoinHandle<Result<(), CoffeeSystemError>>> = None;
         loop {
             let new_connection = task::block_on(self.listener.listen())?;
             let to_next_channel = self.to_next_conn_sender.clone();

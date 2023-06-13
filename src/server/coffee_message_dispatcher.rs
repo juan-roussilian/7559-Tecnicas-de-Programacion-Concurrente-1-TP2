@@ -1,7 +1,7 @@
 use crate::connection_status::ConnectionStatus;
 use crate::errors::ServerError;
 use crate::orders_queue::OrdersQueue;
-use lib::common_errors::ConnectionError;
+use lib::common_errors::CoffeeSystemError;
 use lib::local_connection_messages::{
     CoffeeMakerRequest, CoffeeMakerResponse, MessageType, ResponseStatus,
 };
@@ -79,7 +79,7 @@ impl CoffeeMessageDispatcher {
                         orders_response_sender.send((
                             CoffeeMakerResponse {
                                 message_type: new_request.0.message_type,
-                                status: ResponseStatus::Err(ConnectionError::ConnectionLost),
+                                status: ResponseStatus::Err(CoffeeSystemError::ConnectionLost),
                             },
                             new_request.1,
                         ))?;

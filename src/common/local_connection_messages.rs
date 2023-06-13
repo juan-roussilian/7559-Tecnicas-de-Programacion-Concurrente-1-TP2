@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::common_errors::ConnectionError;
+use crate::common_errors::CoffeeSystemError;
 
 #[derive(Debug, Serialize, Deserialize, Clone, Copy)]
 pub struct CoffeeMakerRequest {
@@ -18,7 +18,7 @@ pub struct CoffeeMakerResponse {
 #[derive(Deserialize, Serialize, Copy, Clone)]
 pub enum ResponseStatus {
     Ok,
-    Err(ConnectionError),
+    Err(CoffeeSystemError),
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq)]

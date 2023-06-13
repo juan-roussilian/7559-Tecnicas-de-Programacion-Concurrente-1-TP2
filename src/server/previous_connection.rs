@@ -5,7 +5,7 @@ use std::{
 
 use async_std::task;
 use lib::{
-    common_errors::ConnectionError, connection_protocol::ConnectionProtocol,
+    common_errors::CoffeeSystemError, connection_protocol::ConnectionProtocol,
     local_connection_messages::MessageType, serializer::deserialize,
 };
 use log::{debug, error, info, warn};
@@ -53,7 +53,7 @@ impl PrevConnection {
         }
     }
 
-    pub fn listen(&mut self) -> Result<(), ConnectionError> {
+    pub fn listen(&mut self) -> Result<(), CoffeeSystemError> {
         loop {
             let encoded = task::block_on(self.connection.recv());
             if encoded.is_err() {
@@ -69,7 +69,7 @@ impl PrevConnection {
                 } else {
                     info!("[PREVIOUS CONNECTION] Previous connection died but i have the token");
                 }
-                return Err(ConnectionError::ConnectionLost);
+                return Err(CoffeeSystemError::ConnectionLost);
             }
 
             let mut encoded = encoded.unwrap();

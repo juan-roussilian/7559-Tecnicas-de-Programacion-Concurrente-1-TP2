@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use lib::common_errors::ConnectionError;
+use lib::common_errors::CoffeeSystemError;
 use lib::local_connection_messages::{
     CoffeeMakerRequest, CoffeeMakerResponse, MessageType, ResponseStatus,
 };
@@ -105,15 +105,15 @@ impl OrdersManager {
                         ResponseStatus::Ok
                     }
                     Err(ServerError::NotEnoughPointsInAccount) => {
-                        ResponseStatus::Err(ConnectionError::NotEnoughPoints)
+                        ResponseStatus::Err(CoffeeSystemError::NotEnoughPoints)
                     }
                     Err(ServerError::AccountNotFound) => {
-                        ResponseStatus::Err(ConnectionError::AccountNotFound)
+                        ResponseStatus::Err(CoffeeSystemError::AccountNotFound)
                     }
                     Err(ServerError::AccountIsReserved) => {
-                        ResponseStatus::Err(ConnectionError::AccountIsReserved)
+                        ResponseStatus::Err(CoffeeSystemError::AccountIsReserved)
                     }
-                    _ => ResponseStatus::Err(ConnectionError::UnexpectedError),
+                    _ => ResponseStatus::Err(CoffeeSystemError::UnexpectedError),
                 };
                 self.request_points_channel.send((
                     CoffeeMakerResponse {

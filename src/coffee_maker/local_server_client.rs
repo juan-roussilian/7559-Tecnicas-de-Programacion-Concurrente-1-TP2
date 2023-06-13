@@ -6,7 +6,7 @@ use std::sync::Arc;
 use async_std::sync::Mutex;
 use async_trait::async_trait;
 use lib::{
-    common_errors::ConnectionError,
+    common_errors::CoffeeSystemError,
     connection_protocol::{ConnectionProtocol, TcpConnection},
     local_connection_messages::{
         CoffeeMakerRequest, CoffeeMakerResponse, MessageType, ResponseStatus,
@@ -18,11 +18,11 @@ use lib::{
 #[cfg_attr(test, automock)]
 #[async_trait]
 pub trait LocalServerClient {
-    async fn add_points(&self, account_id: usize, points: usize) -> Result<(), ConnectionError>;
+    async fn add_points(&self, account_id: usize, points: usize) -> Result<(), CoffeeSystemError>;
     async fn request_points(&self, account_id: usize, points: usize)
-        -> Result<(), ConnectionError>;
-    async fn take_points(&self, account_id: usize, points: usize) -> Result<(), ConnectionError>;
-    async fn cancel_point_request(&self, account_id: usize) -> Result<(), ConnectionError>;
+        -> Result<(), CoffeeSystemError>;
+    async fn take_points(&self, account_id: usize, points: usize) -> Result<(), CoffeeSystemError>;
+    async fn cancel_point_request(&self, account_id: usize) -> Result<(), CoffeeSystemError>;
 }
 
 /// Conexion con el servidor local, arma los mensajes, los envia y espera
@@ -31,7 +31,7 @@ pub struct LocalServer {
 }
 
 impl LocalServer {
-    pub fn new(server_addr: &String) -> Result<LocalServer, ConnectionError> {
+    pub fn new(server_addr: &String) -> Result<LocalServer, CoffeeSystemError> {
         let protocol = TcpConnection::new_client_connection(server_addr)?;
         Ok(LocalServer {
             connection: Arc::new(Mutex::new(Box::new(protocol))),
@@ -44,7 +44,7 @@ async fn handle_request(
     message_type: MessageType,
     account_id: usize,
     points: usize,
-) -> Result<(), ConnectionError> {
+) -> Result<(), CoffeeSystemError> {
     let req = CoffeeMakerRequest {
         message_type,
         account_id,
@@ -64,7 +64,7 @@ async fn handle_request(
 #[async_trait]
 impl LocalServerClient for LocalServer {
     /// Metodo mediante el cual la cafetera le pide al servidor que sume puntos a una cuenta
-    async fn add_points(&self, account_id: usize, points: usize) -> Result<(), ConnectionError> {
+    async fn add_points(&self, account_id: usize, points: usize) -> Result<(), CoffeeSystemError> {
         handle_request(
             self.connection.clone(),
             MessageType::AddPoints,
@@ -79,7 +79,7 @@ impl LocalServerClient for LocalServer {
         &self,
         account_id: usize,
         points: usize,
-    ) -> Result<(), ConnectionError> {
+    ) -> Result<(), CoffeeSystemError> {
         handle_request(
             self.connection.clone(),
             MessageType::RequestPoints,
@@ -90,7 +90,7 @@ impl LocalServerClient for LocalServer {
     }
 
     /// Metodo mediante el cual la cafetera le pide al servidor que reste puntos a una cuenta
-    async fn take_points(&self, account_id: usize, points: usize) -> Result<(), ConnectionError> {
+    async fn take_points(&self, account_id: usize, points: usize) -> Result<(), CoffeeSystemError> {
         handle_request(
             self.connection.clone(),
             MessageType::TakePoints,
@@ -100,7 +100,7 @@ impl LocalServerClient for LocalServer {
         .await
     }
     /// Metodo mediante el cual la cafetera le pide al servidor que cancele la reserva que realizo sobre los puntos de una cuenta
-    async fn cancel_point_request(&self, account_id: usize) -> Result<(), ConnectionError> {
+    async fn cancel_point_request(&self, account_id: usize) -> Result<(), CoffeeSystemError> {
         handle_request(
             self.connection.clone(),
             MessageType::CancelPointsRequest,

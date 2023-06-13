@@ -8,12 +8,12 @@ use async_std::{
 use async_trait::async_trait;
 use log::{error, info};
 
-use crate::common_errors::ConnectionError;
+use crate::common_errors::CoffeeSystemError;
 
 #[async_trait]
 pub trait ConnectionProtocol {
-    async fn send(&mut self, data: &[u8]) -> Result<(), ConnectionError>;
-    async fn recv(&mut self) -> Result<String, ConnectionError>;
+    async fn send(&mut self, data: &[u8]) -> Result<(), CoffeeSystemError>;
+    async fn recv(&mut self) -> Result<String, CoffeeSystemError>;
 }
 
 pub struct TcpConnection {
@@ -23,7 +23,7 @@ pub struct TcpConnection {
 }
 
 impl TcpConnection {
-    pub fn new_client_connection(server_addr: &String) -> Result<TcpConnection, ConnectionError> {
+    pub fn new_client_connection(server_addr: &String) -> Result<TcpConnection, CoffeeSystemError> {
         let result = task::block_on(TcpStream::connect(&server_addr));
         match result {
             Err(e) => {
@@ -31,7 +31,7 @@ impl TcpConnection {
                     "[TCP CONNECTION] Error connecting to server {}, {}",
                     server_addr, e
                 );
-                Err(ConnectionError::ConnectionLost)
+                Err(CoffeeSystemError::ConnectionLost)
             }
             Ok(stream) => {
                 info!(
@@ -58,7 +58,7 @@ impl TcpConnection {
 
 #[async_trait]
 impl ConnectionProtocol for TcpConnection {
-    async fn send(&mut self, data: &[u8]) -> Result<(), ConnectionError> {
+    async fn send(&mut self, data: &[u8]) -> Result<(), CoffeeSystemError> {
         match self.writer.write_all(data).await {
             Ok(()) => Ok(()),
             Err(error) => {
@@ -68,11 +68,11 @@ impl ConnectionProtocol for TcpConnection {
                     self.addr.port(),
                     error
                 );
-                Err(ConnectionError::ConnectionLost)
+                Err(CoffeeSystemError::ConnectionLost)
             }
         }
     }
-    async fn recv(&mut self) -> Result<String, ConnectionError> {
+    async fn recv(&mut self) -> Result<String, CoffeeSystemError> {
         let mut buffer = String::new();
         match self.reader.read_line(&mut buffer).await {
             Ok(read) => {
@@ -82,7 +82,7 @@ impl ConnectionProtocol for TcpConnection {
                         self.addr.ip(),
                         self.addr.port()
                     );
-                    return Err(ConnectionError::ConnectionClosed);
+                    return Err(CoffeeSystemError::ConnectionClosed);
                 }
                 Ok(buffer)
             }
@@ -93,7 +93,7 @@ impl ConnectionProtocol for TcpConnection {
                     self.addr.port(),
                     error
                 );
-                Err(ConnectionError::ConnectionLost)
+                Err(CoffeeSystemError::ConnectionLost)
             }
         }
     }

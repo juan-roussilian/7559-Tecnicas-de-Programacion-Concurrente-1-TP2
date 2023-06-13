@@ -15,7 +15,7 @@ use crate::local_server_client::{LocalServer, LocalServerClient};
 use crate::order::{ConsumptionType, Order};
 use crate::orders_reader::OrdersReader;
 use crate::randomizer::Randomizer;
-use lib::common_errors::ConnectionError;
+use lib::common_errors::CoffeeSystemError;
 
 use self::sync::sleep;
 
@@ -50,7 +50,7 @@ impl CoffeeMaker {
         server_addr: &String,
         order_randomizer: Box<dyn Randomizer>,
         id: usize,
-    ) -> Result<CoffeeMaker, ConnectionError> {
+    ) -> Result<CoffeeMaker, CoffeeSystemError> {
         let connection = LocalServer::new(server_addr)?;
         Ok(CoffeeMaker {
             reader_addr,
@@ -78,11 +78,11 @@ impl CoffeeMaker {
     /// en caso de no poder conectarse a este
     fn handle_server_result(
         &mut self,
-        result: Result<(), ConnectionError>,
+        result: Result<(), CoffeeSystemError>,
         ctx: &mut Context<Self>,
     ) {
         match result {
-            Err(ConnectionError::ConnectionLost) => {
+            Err(CoffeeSystemError::ConnectionLost) => {
                 error!(
                     "[COFFEE MAKER {}] can't connect to server, stopping...",
                     self.id
@@ -153,7 +153,7 @@ async fn add_points(
     server: Arc<Mutex<Box<dyn LocalServerClient>>>,
     randomizer: Arc<Mutex<Box<dyn Randomizer>>>,
     id: usize,
-) -> Result<(), ConnectionError> {
+) -> Result<(), CoffeeSystemError> {
     sleep(Duration::from_millis(PROCESS_ORDER_TIME_IN_MS)).await;
     let success = randomizer.lock().await.get_random_success();
     if !success {
@@ -172,7 +172,7 @@ async fn consume_points(
     server: Arc<Mutex<Box<dyn LocalServerClient>>>,
     randomizer: Arc<Mutex<Box<dyn Randomizer>>>,
     id: usize,
-) -> Result<(), ConnectionError> {
+) -> Result<(), CoffeeSystemError> {
     let result = server
         .lock()
         .await
@@ -261,12 +261,12 @@ mod tests {
         let mut connection_mock = MockLocalServerClient::new();
         connection_mock
             .expect_add_points()
-            .returning(|_, _| Err(ConnectionError::ConnectionLost));
+            .returning(|_, _| Err(CoffeeSystemError::ConnectionLost));
         let connection_mock: Arc<Mutex<Box<dyn LocalServerClient>>> =
             Arc::new(Mutex::new(Box::new(connection_mock)));
         let result = add_points(order, connection_mock.clone(), rand_mock.clone(), 0).await;
         assert!(result.is_err());
-        assert_eq!(ConnectionError::ConnectionLost, result.unwrap_err());
+        assert_eq!(CoffeeSystemError::ConnectionLost, result.unwrap_err());
     }
 
     #[actix_rt::test]
@@ -313,12 +313,12 @@ mod tests {
             .returning(|_, _| Ok(()));
         connection_mock
             .expect_take_points()
-            .returning(|_, _| Err(ConnectionError::ConnectionLost));
+            .returning(|_, _| Err(CoffeeSystemError::ConnectionLost));
         let connection_mock: Arc<Mutex<Box<dyn LocalServerClient>>> =
             Arc::new(Mutex::new(Box::new(connection_mock)));
         let result = consume_points(order, connection_mock.clone(), rand_mock.clone(), 0).await;
         assert!(result.is_err());
-        assert_eq!(ConnectionError::ConnectionLost, result.unwrap_err());
+        assert_eq!(CoffeeSystemError::ConnectionLost, result.unwrap_err());
     }
 
     #[actix_rt::test]
@@ -335,11 +335,11 @@ mod tests {
         let mut connection_mock = MockLocalServerClient::new();
         connection_mock
             .expect_request_points()
-            .returning(|_, _| Err(ConnectionError::NotEnoughPoints));
+            .returning(|_, _| Err(CoffeeSystemError::NotEnoughPoints));
         let connection_mock: Arc<Mutex<Box<dyn LocalServerClient>>> =
             Arc::new(Mutex::new(Box::new(connection_mock)));
         let result = consume_points(order, connection_mock.clone(), rand_mock.clone(), 0).await;
         assert!(result.is_err());
-        assert_eq!(ConnectionError::NotEnoughPoints, result.unwrap_err());
+        assert_eq!(CoffeeSystemError::NotEnoughPoints, result.unwrap_err());
     }
 }

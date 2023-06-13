@@ -1,5 +1,5 @@
 use async_std::task;
-use lib::common_errors::ConnectionError;
+use lib::common_errors::CoffeeSystemError;
 use lib::local_connection_messages::{CoffeeMakerRequest, CoffeeMakerResponse};
 use std::collections::HashMap;
 use std::sync::mpsc::Sender;
@@ -16,7 +16,7 @@ use crate::{
 
 pub struct CoffeeMakerServer {
     listener: TcpConnectionServer,
-    coffee_machines_connections: Vec<JoinHandle<Result<(), ConnectionError>>>,
+    coffee_machines_connections: Vec<JoinHandle<Result<(), CoffeeSystemError>>>,
     coffee_request_sender: Sender<(CoffeeMakerRequest, usize)>,
     machine_response_senders: Arc<Mutex<HashMap<usize, Sender<CoffeeMakerResponse>>>>,
 }
