@@ -66,7 +66,6 @@ impl TcpConnection {
 }
 
 #[async_trait]
-#[cfg_attr(test, automock)]
 impl ConnectionProtocol for TcpConnection {
     /// Envía un array de bytes a través de la conexión TCP, normalmente la serialización de
     /// un struct de Request/Response o de mensaje entre servidores. Devuelve un error en caso de
