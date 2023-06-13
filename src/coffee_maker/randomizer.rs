@@ -6,7 +6,7 @@ use rand::Rng;
 /// Interfaz del generador de chances de exito de un pedido
 #[cfg_attr(test, automock)]
 pub trait Randomizer {
-    /// Retorna true o false de manera azarosa 
+    /// Retorna true o false de manera azarosa
     fn get_random_success(&self) -> bool;
 }
 

@@ -29,6 +29,6 @@ async-trait = "0.1.68"
 
 serde_json = "1.0"
 serde = { version = "1.0.163", features = ["derive"] }
+mockall = "0.10.2"
 
 [dev-dependencies]
-mockall = "0.10.2"

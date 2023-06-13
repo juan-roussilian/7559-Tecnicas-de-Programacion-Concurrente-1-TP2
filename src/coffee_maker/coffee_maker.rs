@@ -59,7 +59,7 @@ impl CoffeeMaker {
             id,
         })
     }
-    
+
     fn send_message<ToReaderMessage>(&self, msg: ToReaderMessage)
     where
         OrdersReader: Handler<ToReaderMessage>,

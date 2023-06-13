@@ -10,6 +10,9 @@ use log::{error, info};
 
 use crate::common_errors::CoffeeSystemError;
 
+use mockall::automock;
+
+#[automock]
 #[async_trait]
 pub trait ConnectionProtocol {
     async fn send(&mut self, data: &[u8]) -> Result<(), CoffeeSystemError>;
@@ -57,6 +60,7 @@ impl TcpConnection {
 }
 
 #[async_trait]
+#[cfg_attr(test, automock)]
 impl ConnectionProtocol for TcpConnection {
     async fn send(&mut self, data: &[u8]) -> Result<(), CoffeeSystemError> {
         match self.writer.write_all(data).await {
