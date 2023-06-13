@@ -180,8 +180,7 @@ impl NextConnection {
                         // pero nosotros nos creemos conectados.
                         // Ej. Red con nodos 0, 1, 2, 3. 2 esta offline y se logra conectar con 0 (justo con el 3 no pudo)
                         // 1 cierra la conexion con 3. La red quedo con un nodo apuntando al equivocado.
-                        // Al detectar que no recibimos mensajes y no tenemos intenamos unirnos nuevamente.
-                        // Con algo mas de logica podemos manejar particiones...
+                        // Al detectar que no recibimos mensajes y no tenemos prev conn intenamos unirnos nuevamente.
                         let mut connected = self.connection_status.lock()?;
                         if !connected.is_prev_online() {
                             debug!(
@@ -421,7 +420,42 @@ impl NextConnection {
 }
 
 fn is_in_between(my_id: usize, sender_id: usize, next_id: usize) -> bool {
-    // caso cerramos circulo o caso en orden
-    // (next_id < my_id && my_id < sender_id) || (my_id < sender_id && sender_id < next_id)
-    (sender_id < next_id || next_id <= my_id) && my_id < sender_id
+    // caso "normal"
+    if sender_id < next_id && my_id < sender_id {
+        return true;
+    }
+
+    //el sender pasa a ser el último en el anillo
+    if next_id <= my_id && my_id < sender_id {
+        return true;
+    }
+
+    //el sender es menor a mi siguiente actual, y soy mayor al sender y a mi siguiente actual
+    if sender_id < next_id && my_id > sender_id && my_id > next_id {
+        return true;
+    }
+
+    false
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn should_return_that_the_id_is_in_between() {
+        assert!(is_in_between(0, 1, 2));
+        assert!(is_in_between(0, 1, 0));
+        assert!(is_in_between(3, 0, 1));
+        assert!(is_in_between(3, 1, 2));
+        assert!(is_in_between(1, 3, 0));
+        assert!(is_in_between(2, 3, 1));
+    }
+
+    #[test]
+    fn should_not_return_that_the_id_is_in_between() {
+        assert!(!is_in_between(0, 3, 1));
+        assert!(!is_in_between(5, 0, 7));
+        assert!(!is_in_between(3, 2, 1));
+    }
 }
