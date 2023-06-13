@@ -10,6 +10,7 @@ pub struct Account {
 }
 
 impl Account {
+    /// Constructor que crea una cuenta con fecha de ultima actualizacion en el momento de su invocacion
     pub fn new(id: usize, points: usize) -> Option<Self> {
         if let Ok(current_timestamp) = SystemTime::now().duration_since(UNIX_EPOCH) {
             Some(Account {
@@ -22,7 +23,7 @@ impl Account {
             None
         }
     }
-
+    /// Constructor que crea una cuenta con fecha de ultima actualizacion
     pub fn new_from_update(id: usize, points: usize, last_updated_on: u128) -> Self {
         Account {
             id,
@@ -43,7 +44,8 @@ impl Account {
     pub fn is_reserved(&mut self) -> bool {
         self.is_reserved
     }
-
+    /// Metodo que suma puntos a una cuenta. En caso de recibirse un timestamp, ser verifica antes de sumar que
+    /// el timestamp sea posterior al que posee la cuenta. Caso contrario no realiza la operacion
     pub fn add_points(
         &mut self,
         points: usize,
@@ -65,6 +67,11 @@ impl Account {
             }
         }
     }
+
+    /// Metodo que resta puntos a una cuenta. En caso de recibirse un timestamp, ser verifica antes de restar que
+    /// el timestamp sea posterior al que posee la cuenta. Caso contrario no realiza la operacion.
+    /// Ademas, si la cuenta esta reservada, retornara error, asi como tambien sucede si los puntos a restar son mas de los que
+    /// dispone la cuenta
     pub fn substract_points(
         &mut self,
         points: usize,
@@ -91,14 +98,16 @@ impl Account {
             }
         }
     }
+    /// Actualiza una cuenta con los valores recibidos para puntos y timestamp
     pub fn update(&mut self, points: usize, operation_time: u128) {
         self.points = points;
         self.last_updated_on = operation_time;
     }
-
+    /// Metodo que elimina la reserva de una cuenta
     pub fn cancel_reservation(&mut self) {
         self.is_reserved = false;
     }
+    /// Metodo que reserva una cuenta. Retorna error en caso de que esta ya este reservada
     pub fn reserve(&mut self) -> Result<(), ServerError> {
         if self.is_reserved {
             return Err(ServerError::AccountIsReserved);
