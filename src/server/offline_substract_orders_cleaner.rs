@@ -39,7 +39,7 @@ impl SubstractOrdersCleaner {
 
 #[cfg(test)]
 mod tests {
-    use std::{sync::mpsc, time::Duration};
+    use std::sync::mpsc;
 
     use lib::local_connection_messages::CoffeeMakerRequest;
 

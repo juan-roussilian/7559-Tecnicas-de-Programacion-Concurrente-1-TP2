@@ -10,7 +10,7 @@ pub struct ServerMessage {
     pub passed_by: HashSet<usize>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub enum ServerMessageType {
     NewConnection(Diff),
     CloseConnection,
@@ -21,7 +21,7 @@ pub enum ServerMessageType {
 type ServerId = usize;
 pub type TokenData = HashMap<usize, Vec<AccountAction>>;
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub struct AccountAction {
     pub message_type: MessageType,
     pub account_id: usize,
@@ -29,13 +29,13 @@ pub struct AccountAction {
     pub last_updated_on: u128,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub struct Diff {
     pub last_update: u128,
     pub changes: Vec<UpdatedAccount>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub struct UpdatedAccount {
     pub id: usize,
     pub amount: usize,

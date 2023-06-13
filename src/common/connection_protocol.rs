@@ -10,6 +10,9 @@ use log::{error, info};
 
 use crate::common_errors::CoffeeSystemError;
 
+use mockall::automock;
+
+#[automock]
 #[async_trait]
 /// Trait que representa la capa de conexión del sistema. Quienes la implementen podrán tanto enviar
 /// como recibir mensajes del protocolo.
@@ -63,6 +66,7 @@ impl TcpConnection {
 }
 
 #[async_trait]
+#[cfg_attr(test, automock)]
 impl ConnectionProtocol for TcpConnection {
     /// Envía un array de bytes a través de la conexión TCP, normalmente la serialización de
     /// un struct de Request/Response o de mensaje entre servidores. Devuelve un error en caso de
