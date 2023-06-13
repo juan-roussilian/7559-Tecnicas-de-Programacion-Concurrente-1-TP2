@@ -20,6 +20,7 @@ use crate::{
     },
 };
 
+/// Maneja la recepcion de mensajes desde la conexion con el anterior
 pub struct PrevConnection {
     connection: Box<dyn ConnectionProtocol + Send>,
     to_next_sender: Sender<ServerMessage>,
