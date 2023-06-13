@@ -8,6 +8,7 @@ pub enum ConnectionError {
     ConnectionClosed,
     SerializationError,
     UnexpectedError,
+    AccountIsReserved,
 }
 
 impl From<serde_json::Error> for ConnectionError {

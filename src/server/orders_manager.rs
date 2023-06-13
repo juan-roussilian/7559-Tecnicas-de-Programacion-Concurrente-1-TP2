@@ -110,6 +110,9 @@ impl OrdersManager {
                     Err(ServerError::AccountNotFound) => {
                         ResponseStatus::Err(ConnectionError::AccountNotFound)
                     }
+                    Err(ServerError::AccountIsReserved) => {
+                        ResponseStatus::Err(ConnectionError::AccountIsReserved)
+                    }
                     _ => ResponseStatus::Err(ConnectionError::UnexpectedError),
                 };
                 self.request_points_channel.send((
